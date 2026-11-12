@@ -2,7 +2,7 @@
 
 Firmware and on-device software for **TENDER TND-01** — a self-contained wearable unit for restaurant floor work. FIELD SERVICE UNIT.
 
-Concept, functions and design language live in [tender-vault](https://github.com/milvalen/tender-vault) (Russian). This README covers only building and running the code.
+Concept, functions and design language live in [tender-vault](https://github.com/milvalen/tender-vault). This README covers only building and running the code.
 
 ## Status
 
