@@ -1,14 +1,22 @@
 // Table board and timers for TENDER TND-01.
 //
-// Hardware-independent core: no Arduino, no heap after setup. Time is passed
-// in as milliseconds since boot, so the logic is testable on a desktop.
+// Hardware-independent core: no Arduino, no heap. Time is passed in as
+// milliseconds since boot, so the logic is testable on a desktop.
 //
-// Behaviour follows tender-vault/20-device/controls.md:
-//   STEP     moves a table to the next stage and resets its timer
+// Behaviour follows tender-vault/20-device/controls.md and the UX audit in
+// tender-vault/10-concept/ux-principles.md:
+//   STEP     moves the selected table to the next stage, resets its timer
 //   UNDO     reverts the last STEP of the selected table
-//   ACK      stops the signal and snoozes it for 3 min
-//   MUTE     mutes all signals for 10 min
+//   ACK      stops the current alert; high alerts come back after 3 min
+//   MUTE     mutes all alerts for 10 min
 //   REQUEST  opens a guest request with a 2 min timer; a second press closes it
+//
+// Alerts have 2 priorities. High (guest waits: order not taken, check
+// requested, open request) raises an alert and moves the selection to the
+// table. Low (offer dessert) is only marked on the list.
+//
+// The list order is a snapshot: it changes only on resort(), so rows do not
+// move while the server reads them.
 #pragma once
 
 #include <stddef.h>
@@ -17,18 +25,22 @@
 namespace tender {
 
 enum class Stage : uint8_t { Free, Seat, Ord, Main, Dsrt, Bill };
+enum class Need : uint8_t { None, Stage, Request };
+enum class Priority : uint8_t { None, Low, High };
 
 constexpr uint32_t kMinute = 60UL * 1000UL;
 constexpr uint32_t kNoThreshold = 0;
 
 struct Config {
-  // Approved by Artemy 2026-11-13 (tender-vault decision log).
+  // Thresholds approved by Artemy 2026-11-13 (tender-vault decision log).
   uint32_t seat_ms = 3 * kMinute;
   uint32_t ord_ms = kNoThreshold;
   uint32_t main_ms = 15 * kMinute;
   uint32_t dsrt_ms = kNoThreshold;
   uint32_t bill_ms = 3 * kMinute;
   uint32_t request_ms = 2 * kMinute;
+  // A high alert that is not handled comes back after this time.
+  uint32_t realert_ms = 3 * kMinute;
   uint32_t ack_snooze_ms = 3 * kMinute;
   uint32_t mute_ms = 10 * kMinute;
 
@@ -41,15 +53,13 @@ struct Table {
   uint32_t stage_since = 0;
   bool request_open = false;
   uint32_t request_since = 0;
-  uint32_t snooze_until = 0;
+  // Earliest time of the next high alert for this table (0 = any time).
+  uint32_t next_alert = 0;
   // One level of undo for STEP.
   bool can_undo = false;
   Stage prev_stage = Stage::Free;
   uint32_t prev_since = 0;
 };
-
-// What a table needs right now.
-enum class Need : uint8_t { None, Stage, Request };
 
 class Board {
  public:
@@ -57,27 +67,31 @@ class Board {
 
   Board(const uint8_t* numbers, size_t count, Config cfg = Config());
 
-  // Actions on the selected table.
+  // Actions on the selected table. Each one re-sorts the list.
   void step(uint32_t now);
-  void undo(uint32_t now);
+  bool undo(uint32_t now);  // false if there is nothing to undo
   void request(uint32_t now);
-  // Actions on signals.
+  // Actions on alerts.
   void ack(uint32_t now);
   void mute(uint32_t now);
-  // Wheel: move the selection through the urgency-sorted list.
-  void scroll(int delta, uint32_t now);
+  // Wheel: move the selection through the current list snapshot.
+  void scroll(int delta);
+  // Rebuild the list snapshot by urgency. Call on wake and after alerts.
+  void resort(uint32_t now);
+
+  // Returns true when a new high alert starts now. The alerting table becomes
+  // the selected table and the list is re-sorted. Call once per loop.
+  bool poll_alert(uint32_t now);
 
   // Queries.
   size_t size() const { return count_; }
   const Table& selected() const { return tables_[selected_]; }
-  // i-th table in urgency order (0 = most urgent).
-  const Table& ranked(size_t i, uint32_t now) const;
-  size_t selected_rank(uint32_t now) const;
+  const Table& ranked(size_t i) const { return tables_[order_[i < count_ ? i : count_ - 1]]; }
+  size_t selected_rank() const;
 
   Need need(const Table& t, uint32_t now) const;
-  bool overdue(const Table& t, uint32_t now) const { return need(t, now) != Need::None; }
-  // True while any overdue table is not snoozed and signals are not muted.
-  bool signalling(uint32_t now) const;
+  Priority priority(const Table& t, uint32_t now) const;
+  bool any_high(uint32_t now) const;
   bool muted(uint32_t now) const { return now < muted_until_; }
   // Fraction of the current threshold used, 0..1+ (0 when there is no threshold).
   float progress(const Table& t, uint32_t now) const;
@@ -86,19 +100,22 @@ class Board {
   const Config& config() const { return cfg_; }
 
  private:
-  // Lower score = more urgent.
   int64_t urgency(const Table& t, uint32_t now) const;
-  void rank(uint32_t now, uint8_t* order) const;
 
   Table tables_[kMaxTables];
+  uint8_t order_[kMaxTables];
   size_t count_ = 0;
   size_t selected_ = 0;
   uint32_t muted_until_ = 0;
   Config cfg_;
 };
 
+// Short stage code for logs: "SEAT", "MAIN".
 const char* stage_name(Stage s);
-
+// What just happened, for the confirmation after STEP: "ORDER TAKEN".
+const char* stage_status(Stage s);
+// What the server must do now, or nullptr: "BRING CHECK".
+const char* action_text(const Board& b, const Table& t, uint32_t now);
 // "TBL-07" style label. buf must hold at least 8 bytes.
 void table_label(uint8_t number, char* buf, size_t len);
 

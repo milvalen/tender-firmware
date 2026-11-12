@@ -28,6 +28,33 @@ const char* stage_name(Stage s) {
   return "?";
 }
 
+const char* stage_status(Stage s) {
+  switch (s) {
+    case Stage::Free: return "TABLE FREE";
+    case Stage::Seat: return "GUESTS SEATED";
+    case Stage::Ord: return "ORDER TAKEN";
+    case Stage::Main: return "MAINS SERVED";
+    case Stage::Dsrt: return "DESSERT SERVED";
+    case Stage::Bill: return "CHECK REQUESTED";
+  }
+  return "?";
+}
+
+const char* action_text(const Board& b, const Table& t, uint32_t now) {
+  switch (b.need(t, now)) {
+    case Need::Request: return "GUEST REQUEST";
+    case Need::Stage:
+      switch (t.stage) {
+        case Stage::Seat: return "TAKE ORDER";
+        case Stage::Main: return "OFFER DESSERT";
+        case Stage::Bill: return "BRING CHECK";
+        default: return "CHECK TABLE";
+      }
+    case Need::None: break;
+  }
+  return nullptr;
+}
+
 void table_label(uint8_t number, char* buf, size_t len) {
   snprintf(buf, len, "TBL-%02u", static_cast<unsigned>(number));
 }
@@ -46,7 +73,11 @@ static Stage next_stage(Stage s) {
 
 Board::Board(const uint8_t* numbers, size_t count, Config cfg) : cfg_(cfg) {
   count_ = count < kMaxTables ? count : kMaxTables;
-  for (size_t i = 0; i < count_; ++i) tables_[i].number = numbers[i];
+  for (size_t i = 0; i < count_; ++i) {
+    tables_[i].number = numbers[i];
+    order_[i] = static_cast<uint8_t>(i);
+  }
+  resort(0);
 }
 
 void Board::step(uint32_t now) {
@@ -56,31 +87,35 @@ void Board::step(uint32_t now) {
   t.can_undo = true;
   t.stage = next_stage(t.stage);
   t.stage_since = now;
-  t.snooze_until = 0;
+  t.next_alert = 0;
   if (t.stage == Stage::Free) t.request_open = false;
+  resort(now);
 }
 
-void Board::undo(uint32_t /*now*/) {
+bool Board::undo(uint32_t now) {
   Table& t = tables_[selected_];
-  if (!t.can_undo) return;
+  if (!t.can_undo) return false;
   t.stage = t.prev_stage;
   t.stage_since = t.prev_since;
   t.can_undo = false;
+  resort(now);
+  return true;
 }
 
 void Board::request(uint32_t now) {
   Table& t = tables_[selected_];
+  t.request_open = !t.request_open;
   if (t.request_open) {
-    t.request_open = false;
-  } else {
-    t.request_open = true;
     t.request_since = now;
+    t.next_alert = 0;
   }
+  resort(now);
 }
 
 void Board::ack(uint32_t now) {
   for (size_t i = 0; i < count_; ++i) {
-    if (overdue(tables_[i], now)) tables_[i].snooze_until = now + cfg_.ack_snooze_ms;
+    Table& t = tables_[i];
+    if (priority(t, now) == Priority::High) t.next_alert = now + cfg_.ack_snooze_ms;
   }
 }
 
@@ -93,13 +128,45 @@ Need Board::need(const Table& t, uint32_t now) const {
   return Need::None;
 }
 
-bool Board::signalling(uint32_t now) const {
+Priority Board::priority(const Table& t, uint32_t now) const {
+  switch (need(t, now)) {
+    case Need::Request: return Priority::High;
+    case Need::Stage: return t.stage == Stage::Main ? Priority::Low : Priority::High;
+    case Need::None: break;
+  }
+  return Priority::None;
+}
+
+bool Board::any_high(uint32_t now) const {
+  for (size_t i = 0; i < count_; ++i)
+    if (priority(tables_[i], now) == Priority::High) return true;
+  return false;
+}
+
+static bool time_reached(uint32_t now, uint32_t at) {
+  // at == 0 means "any time"; otherwise compare with wrap-around safety.
+  return at == 0 || static_cast<int32_t>(now - at) >= 0;
+}
+
+bool Board::poll_alert(uint32_t now) {
   if (muted(now)) return false;
+  int best = -1;
+  int64_t best_u = 0;
   for (size_t i = 0; i < count_; ++i) {
     const Table& t = tables_[i];
-    if (overdue(t, now) && now >= t.snooze_until) return true;
+    if (priority(t, now) != Priority::High || !time_reached(now, t.next_alert)) continue;
+    int64_t u = urgency(t, now);
+    if (best < 0 || u < best_u) {
+      best = static_cast<int>(i);
+      best_u = u;
+    }
   }
-  return false;
+  if (best < 0) return false;
+  tables_[best].next_alert = now + cfg_.realert_ms;
+  if (tables_[best].next_alert == 0) tables_[best].next_alert = 1;
+  selected_ = static_cast<size_t>(best);
+  resort(now);
+  return true;
 }
 
 float Board::progress(const Table& t, uint32_t now) const {
@@ -114,63 +181,53 @@ uint32_t Board::elapsed_min(const Table& t, uint32_t now) const {
 }
 
 int64_t Board::urgency(const Table& t, uint32_t now) const {
-  // Bands: overdue (most overdue first), then running with a threshold
-  // (least time left first), then running without a threshold (longest
-  // running first), then free tables (by number).
+  // Bands, most urgent first: high need (most overdue first), low need,
+  // running with a threshold (least time left first), running without a
+  // threshold (longest running first), free tables (by number).
   constexpr int64_t kBand = 1LL << 40;
-  if (t.stage == Stage::Free && !t.request_open) return 3 * kBand + t.number;
-  int64_t best = 2 * kBand - (now - t.stage_since);
+  if (t.stage == Stage::Free && !t.request_open) return 5 * kBand + t.number;
+  int64_t best = 4 * kBand - (now - t.stage_since);
   uint32_t th = cfg_.threshold(t.stage);
   if (th != kNoThreshold) {
     int64_t left = static_cast<int64_t>(th) - static_cast<int64_t>(now - t.stage_since);
-    best = left <= 0 ? left : kBand + left;
+    if (left > 0) best = 2 * kBand + left;
+    else best = (t.stage == Stage::Main ? kBand : 0) + left;
   }
   if (t.request_open) {
     int64_t left = static_cast<int64_t>(cfg_.request_ms) - static_cast<int64_t>(now - t.request_since);
-    int64_t req = left <= 0 ? left : kBand + left;
+    int64_t req = left <= 0 ? left : 2 * kBand + left;
     if (req < best) best = req;
   }
   return best;
 }
 
-void Board::rank(uint32_t now, uint8_t* order) const {
-  for (size_t i = 0; i < count_; ++i) order[i] = static_cast<uint8_t>(i);
+void Board::resort(uint32_t now) {
+  for (size_t i = 0; i < count_; ++i) order_[i] = static_cast<uint8_t>(i);
   // Insertion sort: stable, tiny n.
   for (size_t i = 1; i < count_; ++i) {
-    uint8_t v = order[i];
+    uint8_t v = order_[i];
     int64_t u = urgency(tables_[v], now);
     size_t j = i;
-    while (j > 0 && urgency(tables_[order[j - 1]], now) > u) {
-      order[j] = order[j - 1];
+    while (j > 0 && urgency(tables_[order_[j - 1]], now) > u) {
+      order_[j] = order_[j - 1];
       --j;
     }
-    order[j] = v;
+    order_[j] = v;
   }
 }
 
-const Table& Board::ranked(size_t i, uint32_t now) const {
-  uint8_t order[kMaxTables];
-  rank(now, order);
-  return tables_[order[i < count_ ? i : count_ - 1]];
-}
-
-size_t Board::selected_rank(uint32_t now) const {
-  uint8_t order[kMaxTables];
-  rank(now, order);
+size_t Board::selected_rank() const {
   for (size_t i = 0; i < count_; ++i)
-    if (order[i] == selected_) return i;
+    if (order_[i] == selected_) return i;
   return 0;
 }
 
-void Board::scroll(int delta, uint32_t now) {
+void Board::scroll(int delta) {
   if (count_ == 0) return;
-  uint8_t order[kMaxTables];
-  rank(now, order);
-  size_t pos = selected_rank(now);
   int n = static_cast<int>(count_);
-  int next = (static_cast<int>(pos) + delta) % n;
+  int next = (static_cast<int>(selected_rank()) + delta) % n;
   if (next < 0) next += n;
-  selected_ = order[next];
+  selected_ = order_[next];
 }
 
 }  // namespace tender
