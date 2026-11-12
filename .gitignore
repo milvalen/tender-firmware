@@ -1,0 +1,13 @@
+.pio/
+.vscode/
+build/
+__pycache__/
+.venv/
+*.pyc
+.env
+.env.*
+*.key
+*.pem
+models/
+*.bin
+.DS_Store
