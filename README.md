@@ -20,14 +20,14 @@ What it does:
 
 Keys:
 
-| Mode | A (front) | B (side) | Red | Blue |
+| Mode | STEP (key A, front) | NEXT (key B, top) | ACK (red key) | REQ (blue key) |
 |---|---|---|---|---|
 | 4 keys, Dual Button unit on Grove (`kHasDualButton = true`) | STEP, hold UNDO | NEXT, hold PREV | ACK, hold MUTE | REQUEST |
 | 2 keys, StickS3 alone | STEP, hold UNDO | NEXT, hold: close an open request, else ACK (alert shown), else open a request | — | — |
 
-The current meaning of each key is printed at the bottom of the screen. The StickS3 has no vibration motor: set `kVibroPin` when one is added.
+The screen names keys by function (`STEP`, `NEXT`, `ACK`, `REQ`), the same words as engraved on enclosure rev 0.2. The StickS3 has no vibration motor: set `kVibroPin` when one is added.
 
-Serial console (115200 baud) uses the simulator keys: `a` `s` `d` `f` = A, B, red, blue; uppercase = hold; `?` = state.
+Serial console (115200 baud) uses the simulator keys: `a` `s` `d` `f` = STEP, NEXT, ACK, REQ; uppercase = hold; `?` = state.
 
 ## Build
 

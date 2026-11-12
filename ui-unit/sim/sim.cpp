@@ -6,7 +6,7 @@
 //   make sim ARGS=--two-keys      2-key mode (StickS3 alone)
 //   build/tnd01-sim --autoplay good|sloppy [--two-keys] [--verbose]
 //
-// Keys: a s d f = A B red blue (tap), Shift + key = hold.
+// Keys: a s d f = STEP NEXT ACK REQ (tap), Shift + key = hold.
 // Pass: 0 wrong-table actions, 0 missed high alerts, no more than 1 question
 // (tender-vault/10-concept/ux-principles.md, desk test).
 #include <signal.h>
@@ -657,10 +657,10 @@ void render(const Screen& s, const Desk& d, uint32_t now, int speed, bool paused
   for (const std::string& row : device_rows(s)) left.push_back(" " + row);
   left.push_back("");
   if (mode == KeyMode::FourKeys) {
-    left.push_back("  a   A        s   B        d   red      f   blue");
+    left.push_back("  a   STEP     s   NEXT     d   ACK      f   REQ");
     left.push_back("  tap = key, Shift + key = hold");
   } else {
-    left.push_back("  a   A        s   B");
+    left.push_back("  a   STEP     s   NEXT");
     left.push_back("  tap = key, Shift + key = hold");
   }
   left.push_back("  ?  not sure what to do     space  pause");

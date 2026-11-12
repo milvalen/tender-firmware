@@ -43,7 +43,7 @@ struct Screen {
   float progress;       // 0 = no bar
   Row rows[2];          // next tables in the list
   size_t row_count;
-  char keys[4][14];     // bottom labels, one per physical key in use
+  char keys[4][16];     // bottom labels by function, in the order STEP, NEXT, ACK, REQ
   bool key_accent[4];
   size_t key_count;
   bool burst_on;        // whole screen in accent colour this frame

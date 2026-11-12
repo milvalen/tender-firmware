@@ -4,12 +4,13 @@
 // lives in lib/tableboard/src/app.h and is shared with the desktop simulator
 // in sim/. This file only reads keys, draws the Screen and drives outputs.
 //
-// Keys:
+// Keys (enclosure rev 0.2 engraves the function next to each key):
 //   4-key mode (M5Stack Dual Button unit on the Grove port, kHasDualButton):
-//     A (front) STEP, hold UNDO | B (side) NEXT, hold PREV
-//     red ACK, hold MUTE        | blue REQUEST
+//     STEP = key A (front), hold UNDO | NEXT = key B (top), hold PREV
+//     ACK = red key, hold MUTE        | REQ = blue key
 //   2-key mode (StickS3 alone):
-//     A STEP, hold UNDO | B NEXT, hold ACK while an alert is shown, else REQUEST
+//     STEP, hold UNDO | NEXT; hold NEXT closes an open request, else ACK
+//     while an alert is shown, else opens a request
 //
 // A USB serial console uses the same keys as the simulator:
 //   a / s / d / f = A / B / red / blue, uppercase = long press, ? = state.
@@ -128,9 +129,12 @@ void draw(const Screen& s) {
   canvas.drawFastHLine(0, h - 14, w, kGrey);
   canvas.setTextSize(1);
   for (size_t i = 0; i < s.key_count; ++i) {
+    int x = w * (2 * static_cast<int>(i) + 1) / (2 * static_cast<int>(s.key_count));
     canvas.setTextDatum(bottom_center);
+    if (s.key_count == 3 && i == 0) { canvas.setTextDatum(bottom_left); x = 4; }
+    if (s.key_count == 3 && i == 2) { canvas.setTextDatum(bottom_right); x = w - 4; }  // long hold label
     canvas.setTextColor(s.key_accent[i] ? kAccent : kGrey, bg);
-    canvas.drawString(s.keys[i], w * (2 * static_cast<int>(i) + 1) / (2 * static_cast<int>(s.key_count)), h - 2);
+    canvas.drawString(s.keys[i], x, h - 2);
   }
   canvas.pushSprite(0, 0);
 }

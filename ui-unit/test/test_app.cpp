@@ -34,7 +34,7 @@ static void test_two_key_mapping() {
   CHECK(b.selected().request_open);
   Screen s;
   app.screen(now, s);
-  CHECK(strcmp(s.keys[2], "HOLD B: DONE") == 0);
+  CHECK(strcmp(s.keys[2], "HOLD NEXT: DONE") == 0);
   // The request is overdue after 2 min: hold B still closes it, so an
   // overdue request cannot get stuck behind ACK.
   now += 2 * M;
@@ -64,7 +64,7 @@ static void test_four_key_mapping() {
   Screen s;
   app.screen(now, s);
   CHECK(s.key_count == 4);
-  CHECK(strcmp(s.keys[2], "RED ACK") == 0);
+  CHECK(strcmp(s.keys[2], "ACK") == 0);
   CHECK(strstr(s.status, "MUTED") != nullptr);
 }
 
@@ -99,7 +99,7 @@ static void test_alert_burst_then_steady() {
   app.screen(due, s);
   CHECK(s.burst_on);
   CHECK(s.table_accent);
-  CHECK(strcmp(s.keys[2], "HOLD B: ACK") == 0);
+  CHECK(strcmp(s.keys[2], "HOLD NEXT: ACK") == 0);
   CHECK(s.key_accent[2]);
   CHECK(app.vibrate(due));
   app.screen(due + 2500, s);  // burst is over, marker stays

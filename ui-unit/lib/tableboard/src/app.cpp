@@ -174,13 +174,17 @@ void App::screen(uint32_t now, Screen& s) const {
   }
 
   if (mode_ == KeyMode::FourKeys) {
-    const char* labels[] = {"A STEP", "B NEXT", "RED ACK", "BLUE REQ"};
+    // Function names, the same words as engraved next to the keys
+    // (design review rev 0.1, R2).
+    const char* labels[] = {"STEP", "NEXT", "ACK", "REQ"};
     for (int i = 0; i < 4; ++i) snprintf(s.keys[i], sizeof s.keys[i], "%s", labels[i]);
     s.key_count = 4;
   } else {
-    snprintf(s.keys[0], sizeof s.keys[0], "A STEP");
-    snprintf(s.keys[1], sizeof s.keys[1], "B NEXT");
-    const char* hold = sel.request_open ? "HOLD B: DONE" : prio == Priority::High ? "HOLD B: ACK" : "HOLD B: REQ";
+    snprintf(s.keys[0], sizeof s.keys[0], "STEP");
+    snprintf(s.keys[1], sizeof s.keys[1], "NEXT");
+    const char* hold = sel.request_open           ? "HOLD NEXT: DONE"
+                       : prio == Priority::High ? "HOLD NEXT: ACK"
+                                                : "HOLD NEXT: REQ";
     snprintf(s.keys[2], sizeof s.keys[2], "%s", hold);
     s.key_accent[2] = prio == Priority::High;
     s.key_count = 3;
