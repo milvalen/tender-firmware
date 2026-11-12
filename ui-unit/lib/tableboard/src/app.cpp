@@ -160,17 +160,14 @@ void App::screen(uint32_t now, Screen& s) const {
   minutes_text(board_, sel, now, s.minutes, sizeof s.minutes);
   s.progress = board_.progress(sel, now);
 
-  const size_t me = board_.selected_rank();
-  for (size_t i = 0; i < board_.size() && s.row_count < 2; ++i) {
-    if (i == me) continue;
-    const Table& t = board_.ranked(i);
-    const char* a = action_text(board_, t, now);
-    char label[8], mins[12];
-    table_label(t.number, label, sizeof label);
-    minutes_text(board_, t, now, mins, sizeof mins);
-    Screen::Row& r = s.rows[s.row_count++];
-    snprintf(r.text, sizeof r.text, "%s %s", label, a ? a : mins);
-    r.accent = board_.priority(t, now) != Priority::None;
+  for (size_t i = 0; i < board_.size(); ++i) {
+    const Table& t = board_.at(i);
+    const Priority p = board_.priority(t, now);
+    Screen::Cell& c = s.strip[s.strip_count++];
+    c.number = t.number;
+    c.selected = i == board_.selected_index();
+    c.accent = p != Priority::None;
+    c.high = p == Priority::High;
   }
 
   if (mode_ == KeyMode::FourKeys) {

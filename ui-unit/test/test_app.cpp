@@ -144,6 +144,25 @@ static void test_low_battery() {
   CHECK(strcmp(s.status, "LOW BATTERY") == 0);
 }
 
+static void test_table_strip() {
+  Board b(kTables, 4);
+  App app(b, KeyMode::FourKeys);
+  app.press(Key::B, Press::Short, 1000);  // NEXT: TBL-03
+  app.press(Key::A, Press::Short, 1000);  // seat guests at TBL-03
+  Screen s;
+  app.screen(1000, s);
+  CHECK(s.strip_count == 4);
+  CHECK(s.strip[0].number == 1 && s.strip[3].number == 12);  // number order
+  CHECK(s.strip[1].selected && !s.strip[0].selected);
+  CHECK(!s.strip[1].accent);
+  app.screen(1000 + 3 * M, s);  // order not taken: high
+  CHECK(s.strip[1].accent && s.strip[1].high);
+  app.press(Key::B, Press::Long, 1000 + 3 * M);  // PREV: TBL-01
+  app.screen(1000 + 3 * M, s);
+  CHECK(s.strip[0].selected);
+  CHECK(s.strip[1].number == 3);  // places do not move
+}
+
 int main() {
   test_two_key_mapping();
   test_four_key_mapping();
@@ -152,6 +171,7 @@ int main() {
   test_ack_stops_burst();
   test_dim_when_idle();
   test_low_battery();
+  test_table_strip();
   printf("app: %d checks, %d failed\n", checks, failures);
   return failures == 0 ? 0 : 1;
 }

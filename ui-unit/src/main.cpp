@@ -120,10 +120,26 @@ void draw(const Screen& s) {
     canvas.fillRect(bx, 60, fill, 7, s.progress >= 1.0f ? kAccent : kPaper);
   }
 
-  canvas.setTextSize(2);
-  for (size_t i = 0; i < s.row_count; ++i) {
-    canvas.setTextColor(s.rows[i].accent ? kAccent : kGrey, bg);
-    canvas.drawString(s.rows[i].text, 6, 76 + 20 * static_cast<int>(i));
+  // Table strip: every table in number order, cursor on the selected one.
+  if (s.strip_count > 0) {
+    const int cell = w / static_cast<int>(s.strip_count);
+    const int y = 78, ch = 22;
+    canvas.setTextSize(cell >= 28 ? 2 : 1);
+    canvas.setTextDatum(middle_center);
+    for (size_t i = 0; i < s.strip_count; ++i) {
+      const Screen::Cell& c = s.strip[i];
+      const int x = static_cast<int>(i) * cell;
+      char num[4];
+      snprintf(num, sizeof num, "%u", c.number);
+      uint16_t fg = c.accent ? kAccent : kGrey;
+      if (c.selected) {
+        canvas.fillRect(x + 1, y, cell - 2, ch, c.high ? kAccent : kPaper);
+        fg = kInk;
+      }
+      canvas.setTextColor(fg, c.selected ? (c.high ? kAccent : kPaper) : bg);
+      canvas.drawString(num, x + cell / 2, y + ch / 2);
+    }
+    canvas.setTextDatum(top_left);
   }
 
   canvas.drawFastHLine(0, h - 14, w, kGrey);

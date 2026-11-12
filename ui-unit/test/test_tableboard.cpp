@@ -168,14 +168,28 @@ static void test_high_outranks_low() {
 
 static void test_scroll_wraps() {
   Board b(kTables, 4);
-  uint8_t seen[4] = {0};
-  for (int i = 0; i < 4; ++i) {
-    seen[i] = b.selected().number;
+  // NEXT walks in number order, whatever the urgency (desk test D5).
+  CHECK(select_table(b, 7));
+  b.step(0);  // TBL-07 seated: most urgent now
+  CHECK(select_table(b, 1));
+  const uint8_t expected[] = {3, 7, 12, 1};
+  for (uint8_t n : expected) {
     b.scroll(1);
+    CHECK(b.selected().number == n);
   }
-  CHECK(b.selected().number == seen[0]);
   b.scroll(-1);
-  CHECK(b.selected().number == seen[3]);
+  CHECK(b.selected().number == 12);
+  CHECK(b.at(0).number == 1);
+  CHECK(b.at(3).number == 12);
+}
+
+static void test_numbers_sorted() {
+  const uint8_t mixed[] = {12, 3, 7, 1};
+  Board b(mixed, 4);
+  CHECK(b.at(0).number == 1);
+  CHECK(b.at(1).number == 3);
+  CHECK(b.at(2).number == 7);
+  CHECK(b.at(3).number == 12);
 }
 
 static void test_labels() {
@@ -210,6 +224,7 @@ int main() {
   test_stable_order();
   test_high_outranks_low();
   test_scroll_wraps();
+  test_numbers_sorted();
   test_labels();
   test_wraparound_millis();
   printf("%d checks, %d failed\n", checks, failures);

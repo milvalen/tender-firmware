@@ -12,11 +12,11 @@ Concept, functions, controls and the UX rules live in [tender-vault](https://git
 
 What it does:
 
-- one line per table with what to do now: `TBL-07` / `BRING CHECK`;
+- the selected table and what to do now: `TBL-07` / `BRING CHECK`;
 - stage timers with approved thresholds: take order 3 min, offer dessert 15 min, bring check 3 min, guest request 2 min;
 - 2 alert levels: high alerts (guest waits) flash once and move the selection to the table, then return after 3 min if not handled; low alerts (dessert) are only marked;
 - a 1 s confirmation after every press; one-step undo;
-- the list keeps its order while you read it and re-sorts after an action, an alert or while idle.
+- a table strip shows all tables by number in fixed places, `1 2 3 [4] 5 6 7 8`; NEXT moves the box to the right, hold NEXT (4-key mode) to the left; tables that need an action are orange.
 
 Keys:
 

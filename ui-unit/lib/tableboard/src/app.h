@@ -29,9 +29,13 @@ struct Timing {
 };
 
 struct Screen {
-  struct Row {
-    char text[28];
-    bool accent;
+  // One cell of the table strip: all tables in number order, always in the
+  // same place, with a cursor on the selected one (desk test D5).
+  struct Cell {
+    uint8_t number;
+    bool selected;
+    bool accent;  // the table needs an action (low or high)
+    bool high;    // the guest waits
   };
   char status[28];      // top right: "MUTED", "LOW BATTERY", or empty
   char table[8];        // "TBL-07"
@@ -41,8 +45,8 @@ struct Screen {
   bool line2_toast;     // confirmation: drawn inverted
   char minutes[12];     // "12 MIN" or "FREE"
   float progress;       // 0 = no bar
-  Row rows[2];          // next tables in the list
-  size_t row_count;
+  Cell strip[Board::kMaxTables];
+  size_t strip_count;
   char keys[4][16];     // bottom labels by function, in the order STEP, NEXT, ACK, REQ
   bool key_accent[4];
   size_t key_count;

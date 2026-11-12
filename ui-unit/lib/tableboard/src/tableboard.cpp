@@ -74,9 +74,16 @@ static Stage next_stage(Stage s) {
 Board::Board(const uint8_t* numbers, size_t count, Config cfg) : cfg_(cfg) {
   count_ = count < kMaxTables ? count : kMaxTables;
   for (size_t i = 0; i < count_; ++i) {
-    tables_[i].number = numbers[i];
-    order_[i] = static_cast<uint8_t>(i);
+    // Insertion sort by number: the strip shows tables in number order.
+    uint8_t n = numbers[i];
+    size_t j = i;
+    while (j > 0 && tables_[j - 1].number > n) {
+      tables_[j].number = tables_[j - 1].number;
+      --j;
+    }
+    tables_[j].number = n;
   }
+  for (size_t i = 0; i < count_; ++i) order_[i] = static_cast<uint8_t>(i);
   resort(0);
 }
 
@@ -225,9 +232,9 @@ size_t Board::selected_rank() const {
 void Board::scroll(int delta) {
   if (count_ == 0) return;
   int n = static_cast<int>(count_);
-  int next = (static_cast<int>(selected_rank()) + delta) % n;
+  int next = (static_cast<int>(selected_) + delta) % n;
   if (next < 0) next += n;
-  selected_ = order_[next];
+  selected_ = static_cast<size_t>(next);
 }
 
 }  // namespace tender

@@ -15,8 +15,10 @@
 // requested, open request) raises an alert and moves the selection to the
 // table. Low (offer dessert) is only marked on the list.
 //
-// The list order is a snapshot: it changes only on resort(), so rows do not
-// move while the server reads them.
+// Tables are kept in number order. NEXT and PREV move the selection in this
+// order, so each table has a fixed place on the screen strip (desk test D5).
+// The urgency order is a snapshot for alerts and logs: it changes only on
+// resort().
 #pragma once
 
 #include <stddef.h>
@@ -74,7 +76,7 @@ class Board {
   // Actions on alerts.
   void ack(uint32_t now);
   void mute(uint32_t now);
-  // Wheel: move the selection through the current list snapshot.
+  // NEXT / PREV: move the selection in table-number order, with wrap-around.
   void scroll(int delta);
   // Rebuild the list snapshot by urgency. Call on wake and after alerts.
   void resort(uint32_t now);
@@ -86,6 +88,9 @@ class Board {
   // Queries.
   size_t size() const { return count_; }
   const Table& selected() const { return tables_[selected_]; }
+  // Table i in number order, and the index of the selected table.
+  const Table& at(size_t i) const { return tables_[i < count_ ? i : count_ - 1]; }
+  size_t selected_index() const { return selected_; }
   const Table& ranked(size_t i) const { return tables_[order_[i < count_ ? i : count_ - 1]]; }
   size_t selected_rank() const;
 

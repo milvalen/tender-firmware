@@ -506,7 +506,14 @@ class Bot {
     }
 
     if (sel.number != table) {
-      set(Key::B, Press::Short, key, kind);
+      // Number order: go the short way round (hold NEXT = back in 4-key mode).
+      size_t target = 0;
+      for (size_t i = 0; i < board_.size(); ++i)
+        if (board_.at(i).number == table) target = i;
+      const size_t n = board_.size(), here = board_.selected_index();
+      const size_t fwd = (target + n - here) % n;
+      const bool back = mode_ == KeyMode::FourKeys && n - fwd < fwd;
+      set(Key::B, back ? Press::Long : Press::Short, key, kind);
       return true;
     }
     if (is_alert) {
@@ -658,9 +665,22 @@ std::vector<std::string> device_rows(const Screen& s) {
     }
     r.push_back(edge + "│" + rst + line + grey + " " + rst + edge + "│" + rst);
   }
-  for (size_t i = 0; i < 2; ++i) {
-    if (i < s.row_count) r.push_back(cell(s.rows[i].accent ? accent : grey, s.rows[i].text, 0));
-    else r.push_back(cell(grey, "", 0));
+  r.push_back(cell(grey, "", 0));
+  {  // Table strip: every table in number order, cursor on the selected one.
+    std::string line;
+    int left = kInner;
+    for (size_t i = 0; i < s.strip_count; ++i) {
+      const Screen::Cell& c = s.strip[i];
+      int w = kInner / static_cast<int>(s.strip_count);
+      if (i + 1 == s.strip_count) w = left;
+      left -= w;
+      std::string style = c.accent ? accent : grey;
+      if (c.selected)
+        style = (c.high ? std::string("\x1b[48;5;208m") : std::string("\x1b[48;5;255m")) + "\x1b[38;5;16m\x1b[1m";
+      line += style + pad(std::to_string(c.number), w, 1) + rst;
+    }
+    if (left > 0) line += grey + std::string(static_cast<size_t>(left), ' ');
+    r.push_back(edge + "\u2502" + rst + line + rst + edge + "\u2502" + rst);
   }
   std::string sep;
   for (int i = 0; i < kInner; ++i) sep += "─";
