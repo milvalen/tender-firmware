@@ -582,10 +582,39 @@ void raw_tty() {
   fputs("\x1b[?1049h\x1b[?25l\x1b[2J", stdout);
 }
 
-int term_cols() {
+void term_size(int& cols, int& rows) {
   struct winsize w;
-  if (ioctl(STDOUT_FILENO, TIOCGWINSZ, &w) == 0 && w.ws_col > 0) return w.ws_col;
-  return 100;
+  cols = 100;
+  rows = 30;
+  if (ioctl(STDOUT_FILENO, TIOCGWINSZ, &w) == 0 && w.ws_col > 0) {
+    cols = w.ws_col;
+    rows = w.ws_row > 0 ? w.ws_row : rows;
+  }
+}
+
+// Word wrap for floor lines; continuation lines are indented under the text.
+std::vector<std::string> wrap(const std::string& text, int width, int indent) {
+  std::vector<std::string> out;
+  if (width < 12) width = 12;
+  std::string line, word;
+  auto flush_word = [&]() {
+    if (word.empty()) return;
+    if (!line.empty() && static_cast<int>(line.size() + 1 + word.size()) > width) {
+      out.push_back(line);
+      line = std::string(static_cast<size_t>(indent), ' ');
+    } else if (!line.empty() && line.back() != ' ') {
+      line += ' ';
+    }
+    line += word;
+    word.clear();
+  };
+  for (char c : text) {
+    if (c == ' ') flush_word();
+    else word += c;
+  }
+  flush_word();
+  if (!line.empty()) out.push_back(line);
+  return out;
 }
 
 constexpr int kInner = 40;  // device screen width in characters
@@ -652,55 +681,63 @@ std::vector<std::string> device_rows(const Screen& s) {
 }
 
 void render(const Screen& s, const Desk& d, uint32_t now, int speed, bool paused, bool started, KeyMode mode) {
-  std::vector<std::string> left;
-  left.push_back("");
-  for (const std::string& row : device_rows(s)) left.push_back(" " + row);
-  left.push_back("");
-  if (mode == KeyMode::FourKeys) {
-    left.push_back("  a   STEP     s   NEXT     d   ACK      f   REQ");
-    left.push_back("  tap = key, Shift + key = hold");
-  } else {
-    left.push_back("  a   STEP     s   NEXT");
-    left.push_back("  tap = key, Shift + key = hold");
-  }
-  left.push_back("  ?  not sure what to do     space  pause");
-  left.push_back("  + -  speed                 q  end the shift");
+  int cols, rows;
+  term_size(cols, rows);
 
-  const int cols = term_cols();
-  const int floor_col = 46;
-  const int floor_w = cols - floor_col - 1;
-  std::vector<std::string> right;
+  std::vector<std::string> left;
+  for (const std::string& row : device_rows(s)) left.push_back(" " + row);
+  left.push_back(mode == KeyMode::FourKeys ? "  a STEP   s NEXT   d ACK   f REQ" : "  a STEP   s NEXT");
+  left.push_back("  Shift + key = hold   ? = not sure");
+  left.push_back("  space pause   + - speed   q end");
+
+  // Floor column beside the device when the terminal is wide, else below it.
+  const int device_w = 44;
+  const bool side = cols >= device_w + 2 + 40;
+  const int floor_col = side ? device_w + 3 : 1;
+  const int floor_w = (side ? cols - floor_col : cols) - 2;
+
   char head[96];
-  snprintf(head, sizeof head, "FLOOR   %s / %s   x%d%s", clock_text(now).c_str(), clock_text(at_s(sim::kShiftSeconds)).c_str(),
-           speed, paused ? "   PAUSED" : "");
-  right.push_back(std::string("\x1b[1m") + head + "\x1b[0m");
-  right.push_back("");
-  const size_t rows = left.size() - 2;
+  snprintf(head, sizeof head, "FLOOR  %s / %s  x%d%s", clock_text(now).c_str(),
+           clock_text(at_s(sim::kShiftSeconds)).c_str(), speed, paused ? "  PAUSED" : "");
+
+  std::vector<std::string> floor;  // wrapped, oldest first
   if (!started) {
-    right.push_back("You are the server for tables 1 to 8.");
-    right.push_back("Things that happen on the floor appear here.");
-    right.push_back("Keep the device up to date with its keys.");
-    right.push_back("");
-    right.push_back("\x1b[1mPress space to start the shift.\x1b[0m");
+    const char* intro[] = {"You are the server for tables 1 to 8.",
+                           "Things that happen on the floor appear here.",
+                           "Keep the device up to date with its keys.",
+                           "\x1b[1mPress space to start the shift.\x1b[0m"};
+    for (const char* t : intro)
+      for (const std::string& l : wrap(t, floor_w + (t[0] == '\x1b' ? 8 : 0), 0)) floor.push_back(l);
   } else {
-    size_t first = d.floor.size() > rows ? d.floor.size() - rows : 0;
-    for (size_t i = first; i < d.floor.size(); ++i) {
-      std::string line = clock_text(d.floor[i].first) + "  " + d.floor[i].second;
-      if (floor_w > 0 && static_cast<int>(line.size()) > floor_w) line = line.substr(0, static_cast<size_t>(floor_w));
-      bool fresh = now - d.floor[i].first < 20 * kSec;
-      right.push_back((fresh ? "\x1b[1m" : "\x1b[38;5;246m") + line + "\x1b[0m");
+    for (const auto& ev : d.floor) {
+      const bool fresh = now - ev.first < 20 * kSec;
+      const std::string style = fresh ? "\x1b[1m" : "\x1b[38;5;246m";
+      for (const std::string& l : wrap(clock_text(ev.first) + "  " + ev.second, floor_w, 7))
+        floor.push_back(style + l + "\x1b[0m");
     }
   }
 
-  std::string out = "\x1b[H";
-  const size_t n = left.size() > right.size() ? left.size() : right.size();
-  for (size_t i = 0; i < n; ++i) {
-    std::string l = i < left.size() ? left[i] : "";
-    out += "\x1b[" + std::to_string(i + 1) + ";1H" + l + "\x1b[0m\x1b[K";
-    if (i < right.size() && floor_w > 10)
-      out += "\x1b[" + std::to_string(i + 1) + ";" + std::to_string(floor_col) + "H" + right[i] + "\x1b[0m\x1b[K";
+  // Lines available for the floor log.
+  const int head_row = side ? 1 : static_cast<int>(left.size()) + 2;
+  int space = rows - head_row - 1;
+  if (space < 3) space = 3;
+  const size_t first = floor.size() > static_cast<size_t>(space) ? floor.size() - space : 0;
+
+  // Build each screen row, clear it and write it in one go: no flicker.
+  std::vector<std::vector<std::pair<int, std::string>>> frame(static_cast<size_t>(rows) + 1);
+  auto put = [&](int row, int col, const std::string& text) {
+    if (row >= 1 && row <= rows) frame[static_cast<size_t>(row)].emplace_back(col, text);
+  };
+  for (size_t i = 0; i < left.size(); ++i) put(static_cast<int>(i) + (side ? 2 : 1), 1, left[i]);
+  put(head_row, floor_col, std::string("\x1b[1m") + head);
+  for (size_t i = first; i < floor.size(); ++i)
+    put(head_row + 1 + static_cast<int>(i - first), floor_col, floor[i]);
+  std::string out;
+  for (int r = 1; r <= rows; ++r) {
+    out += "\x1b[" + std::to_string(r) + ";1H\x1b[2K";
+    for (const auto& seg : frame[static_cast<size_t>(r)])
+      out += "\x1b[" + std::to_string(r) + ";" + std::to_string(seg.first) + "H" + seg.second + "\x1b[0m";
   }
-  out += "\x1b[J";
   fputs(out.c_str(), stdout);
   fflush(stdout);
 }
