@@ -15,7 +15,9 @@
 // A USB serial console uses the same keys as the simulator:
 //   a / s / d / f = A / B / red / blue, uppercase = long press, ? = state.
 //
-// The StickS3 has no vibration motor. Set kVibroPin to drive one [?].
+// The StickS3 has no vibration motor. Set kVibroPin to drive one [?]: the
+// motor runs on PWM with a limited duty, because at full power it can draw
+// more than the 5 V output gives on battery.
 #include <M5Unified.h>
 
 #include "app.h"
@@ -40,6 +42,13 @@ constexpr int kRedPin = 9;              // Grove PORT.A yellow [?]
 constexpr int kBluePin = 10;            // Grove PORT.A white [?]
 constexpr bool kDualActiveHigh = true;  // [?] check on the real unit
 constexpr int kVibroPin = -1;           // GPIO of a vibration motor driver, -1 = none
+// Unit Vibrator (U059): the maker gives 424 mA at 5 V for 10 kHz PWM, 50 % duty.
+// The StickS3 gives 0.38 A on Grove 5 V. Start low; raise only after a
+// current measurement on battery [?].
+constexpr uint32_t kVibroFreqHz = 10000;
+constexpr uint8_t kVibroBits = 8;
+constexpr uint32_t kVibroDuty = 90;     // of 255, about 35 % [?]
+constexpr uint8_t kVibroChannel = 2;    // LEDC; the backlight and power code use 6 and 7
 constexpr bool kBeepOnAlert = false;    // the floor stays silent by default
 
 constexpr uint32_t kHoldMs = 600;
@@ -208,12 +217,19 @@ void setup() {
   auto cfg = M5.config();
   M5.begin(cfg);
   Serial.begin(115200);
+  if (kHasDualButton || kVibroPin >= 0) {
+    M5.Power.setExtOutput(true);  // Grove 5 V is off by default in M5Unified; Hat2 5 V too [?]
+  }
   if (kHasDualButton) {
-    M5.Power.setExtOutput(true);  // Grove 5 V is off by default in M5Unified
     red_key.begin();
     blue_key.begin();
   }
-  if (kVibroPin >= 0) pinMode(kVibroPin, OUTPUT);
+  if (kVibroPin >= 0) {
+    static_assert(kVibroDuty < (1u << kVibroBits), "kVibroDuty is above the PWM range");
+    ledcSetup(kVibroChannel, kVibroFreqHz, kVibroBits);
+    ledcAttachPin(kVibroPin, kVibroChannel);
+    ledcWrite(kVibroChannel, 0);
+  }
   M5.Display.setRotation(1);  // landscape; use 3 if the screen is upside down in the enclosure [?]
   M5.Display.setBrightness(kBright);
   M5.BtnA.setHoldThresh(kHoldMs);
@@ -235,7 +251,12 @@ void loop() {
   }
 
   app.set_battery(M5.Power.getBatteryLevel());
-  if (kVibroPin >= 0) digitalWrite(kVibroPin, app.vibrate(now) ? HIGH : LOW);
+  if (kVibroPin >= 0) {
+    static bool vibro_on = false;
+    const bool on = app.vibrate(now);
+    if (on != vibro_on) ledcWrite(kVibroChannel, on ? kVibroDuty : 0);
+    vibro_on = on;
+  }
   M5.Display.setBrightness(app.idle(now) ? kDim : kBright);
 
   if (dirty || app.busy(now) || now - last_redraw >= kRedrawMs) {
