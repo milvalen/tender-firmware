@@ -167,7 +167,7 @@ std::vector<std::string> device_column(const Screen& s, const GameState& game) {
   const KeyMode mode = game.mode;
   out.push_back(mode == KeyMode::FourKeys ? "  a STEP   s NEXT   d ACK   f TALK" : "  a STEP   s NEXT");
   out.push_back("  Shift + key = hold   ? = not sure");
-  out.push_back("  space pause   + - speed   q end");
+  out.push_back("  space/Enter pause   + - speed   q end");
   return out;
 }
 
@@ -181,7 +181,7 @@ std::vector<std::string> intro_lines(int width) {
   for (const char* t : plain)
     for (const std::string& l : wrap(t, width, 0)) out.push_back(l);
   // The bold line carries 8 characters of escape codes.
-  const std::string start = std::string(kBold) + "Press space to start the shift." + kReset;
+  const std::string start = std::string(kBold) + "Press space or Enter to start the shift." + kReset;
   for (const std::string& l : wrap(start, width + 8, 0)) out.push_back(l);
   return out;
 }
