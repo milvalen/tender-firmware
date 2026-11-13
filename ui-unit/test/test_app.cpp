@@ -201,9 +201,10 @@ static void test_alert_key_and_undo_hint() {
   app.tick(due);
   app.screen(due, s);
   CHECK(strcmp(s.keys[0], "DONE") == 0);
+  CHECK(strcmp(s.keys[3], "TALK") == 0);  // the blue key, engraved TALK
   CHECK(s.key_accent[0]);   // the main key ends a request alert
   CHECK(!s.key_accent[2]);
-  CHECK(app.press(Key::Blue, Press::Short, due) == Action::None);  // REQ only opens
+  CHECK(app.press(Key::Blue, Press::Short, due) == Action::None);  // TALK only opens
   CHECK(app.press(Key::A, Press::Short, due) == Action::Request);  // DONE
   CHECK(!app.tick(due + 1000));  // no new alert
   // After a STEP the status line shows how to take it back, for 5 s; the

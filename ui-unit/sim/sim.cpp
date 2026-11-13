@@ -6,7 +6,7 @@
 //   make sim ARGS=--two-keys      2-key mode (StickS3 alone)
 //   build/tnd01-sim --autoplay good|sloppy [--two-keys] [--verbose]
 //
-// Keys: a s d f = STEP NEXT ACK REQ (tap), Shift + key = hold.
+// Keys: a s d f = STEP NEXT ACK TALK (tap), Shift + key = hold.
 //
 // Parts:
 //   shift.h     the shift script: parties and their timelines

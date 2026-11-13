@@ -136,9 +136,19 @@ std::string strip_row(const Screen& s, const Styles& st) {
   return framed(line);
 }
 
-// Key labels, one column per key.
+// Key labels, one column per key. In 2-key mode the device draws the first
+// label at the left edge and the long hold label at the right edge; the
+// simulator does the same, so the hold label gets the widest column.
 std::string keys_row(const Screen& s, const Styles& st) {
   std::string line;
+  if (s.key_count == 3) {
+    const int widths[] = {11, 10, kScreenChars - 23};  // plus a 1-char margin on each side
+    const Align aligns[] = {Align::Left, Align::Center, Align::Right};
+    line = " ";
+    for (size_t i = 0; i < 3; ++i)
+      line += (s.key_accent[i] ? st.accent : st.grey) + pad(s.keys[i], widths[i], aligns[i]);
+    return framed(line + " ");
+  }
   for (size_t i = 0; i < s.key_count; ++i)
     line += (s.key_accent[i] ? st.accent : st.grey) +
             pad(s.keys[i], column_width(kScreenChars, s.key_count, i), Align::Center);
@@ -150,7 +160,7 @@ std::string keys_row(const Screen& s, const Styles& st) {
 std::vector<std::string> device_column(const Screen& s, KeyMode mode) {
   std::vector<std::string> out;
   for (const std::string& row : device_rows(s)) out.push_back(" " + row);
-  out.push_back(mode == KeyMode::FourKeys ? "  a STEP   s NEXT   d ACK   f REQ" : "  a STEP   s NEXT");
+  out.push_back(mode == KeyMode::FourKeys ? "  a STEP   s NEXT   d ACK   f TALK" : "  a STEP   s NEXT");
   out.push_back("  Shift + key = hold   ? = not sure");
   out.push_back("  space pause   + - speed   q end");
   return out;
