@@ -8,7 +8,8 @@
 //   STEP     moves the selected table to the next stage, resets its timer
 //   UNDO     reverts the last STEP of the selected table
 //   ACK      stops the current alert; high alerts come back after 3 min;
-//            on the selected table it also clears the dessert hint
+//            on the selected table it also clears a low hint (dessert,
+//            mains not served)
 //   MUTE     quiet floor on or off: alerts by vibration only, no screen
 //            burst, the screen turns off when idle; stays on until the next
 //            MUTE (vault decision 2026-11-13)
@@ -16,7 +17,8 @@
 //
 // Alerts have 2 priorities. High (guest waits: order not taken, check
 // requested, open request) raises an alert and moves the selection to the
-// table. Low (offer dessert) is only marked on the list.
+// table. Low (offer dessert; mains not served after a long time, desk test
+// D20) is only marked on the list.
 //
 // Tables are kept in number order. NEXT and PREV move the selection in this
 // order, so each table has a fixed place on the screen strip (desk test D5).
@@ -43,7 +45,9 @@ constexpr uint32_t kNoThreshold = 0;
 struct Config {
   // Thresholds approved by Artemy 2026-11-13 (tender-vault decision log).
   uint32_t seat_ms = 3 * kMinute;
-  uint32_t ord_ms = kNoThreshold;
+  // A low hint, not an alert: a table in ORD this long may have a forgotten
+  // SERVED (desk test D20, approved by Artemy 2026-11-13; check on a shift).
+  uint32_t ord_ms = 10 * kMinute;
   uint32_t main_ms = 15 * kMinute;
   uint32_t bill_ms = 3 * kMinute;
   uint32_t pay_ms = kNoThreshold;  // check brought: no alert while the guests pay
@@ -63,7 +67,7 @@ struct Table {
   uint32_t request_since = 0;
   // Earliest time of the next high alert for this table (0 = any time).
   uint32_t next_alert = 0;
-  // The server offered dessert (ACK on the hint): no hint until the next STEP.
+  // The server answered a low hint with ACK: no hint until the next STEP.
   bool hint_done = false;
   // One level of undo for STEP.
   bool can_undo = false;
@@ -124,6 +128,8 @@ class Board {
 };
 
 // The stage that STEP moves to.
+// Stages whose overdue time gives a low hint, not a high alert.
+bool low_hint_stage(Stage s);
 Stage next_stage(Stage s);
 // What the next STEP records, for the STEP key label: "ORDER", "CHECK".
 const char* step_label(Stage current);

@@ -28,7 +28,7 @@ import time
 from dataclasses import dataclass, field
 
 # Thresholds in minutes, as in tableboard.h Config (approved 2026-11-13).
-THRESHOLD_MIN = {"SEAT": 3, "MAIN": 15, "BILL": 3}
+THRESHOLD_MIN = {"SEAT": 3, "ORD": 10, "MAIN": 15, "BILL": 3}
 STAGE_ORDER = ["SEAT", "ORD", "MAIN", "BILL", "PAY"]
 BAD_RESETS = {"PANIC", "WATCHDOG", "BROWNOUT"}
 COLUMNS = ["boot", "ms", "event", "table", "stage", "detail"]
