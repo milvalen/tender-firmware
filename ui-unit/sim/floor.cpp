@@ -7,8 +7,7 @@ namespace sim {
 using tender::Stage;
 
 namespace {
-constexpr int kCheckBroughtAfterS = 60;   // the server brings the check this long after the request
-constexpr int kTellCheckIfPayAfterS = 180;  // the floor says so only before a slow payment
+constexpr int kCheckBroughtAfterS = 40;  // the server brings the check this long after the request
 constexpr int kKitchenFixAfterS = 25;     // the kitchen corrects its mix-up after this time
 }  // namespace
 
@@ -121,7 +120,8 @@ void Floor::check(PartyProgress& s, uint32_t now) {
   const std::string t = table_name(p.table);
   if (!s.check_brought && now >= after(s.check_at, kCheckBroughtAfterS)) {
     s.check_brought = true;
-    if (p.pay_after_s > kTellCheckIfPayAfterS) say(now, "You bring the check to " + t + ".");
+    say(now, "You bring the check to " + t + ".");
+    referee_.expect(now, p.table, Want::Stage, Stage::Pay, "check brought");
   }
   if (now < after(s.check_at, p.pay_after_s)) return;
   say(now, "Guests at " + t + " pay and leave.");

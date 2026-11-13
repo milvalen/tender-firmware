@@ -48,7 +48,8 @@ inline tender::Stage stage_after(tender::Stage s) {
     case Stage::Seat: return Stage::Ord;
     case Stage::Ord: return Stage::Main;
     case Stage::Main: return Stage::Bill;
-    case Stage::Bill: return Stage::Free;
+    case Stage::Bill: return Stage::Pay;
+    case Stage::Pay: return Stage::Free;
   }
   return Stage::Free;
 }
