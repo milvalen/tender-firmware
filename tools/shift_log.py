@@ -48,6 +48,7 @@ class Row:
 @dataclass
 class Dump:
     now_ms: int | None = None
+    firmware_now: str = ""  # the firmware that printed the dump
     rows: list[Row] = field(default_factory=list)
     end_seen: bool = False
     skipped: int = 0
@@ -65,6 +66,8 @@ def parse_dump(lines) -> Dump:
             for part in line.split():
                 if part.startswith("now_ms="):
                     dump.now_ms = int(part.split("=", 1)[1])
+                elif part.startswith("fw="):
+                    dump.firmware_now = part.split("=", 1)[1]
             continue
         if not in_log:
             continue
@@ -123,6 +126,7 @@ def write_csv(dump: Dump, path: str) -> None:
 @dataclass
 class Summary:
     boots: int = 0
+    firmware: dict[int, str] = field(default_factory=dict)  # boot -> commit
     bad_resets: list[str] = field(default_factory=list)
     presses: dict[str, int] = field(default_factory=dict)
     alerts: dict[str, int] = field(default_factory=dict)
@@ -140,6 +144,9 @@ def summarise(dump: Dump) -> Summary:
             reason = r.detail.removeprefix("reset=")
             if reason in BAD_RESETS:
                 s.bad_resets.append(f"boot {r.boot}: {reason}")
+            continue
+        if r.event == "FIRMWARE":
+            s.firmware[r.boot] = r.detail.removeprefix("commit=")
             continue
         if r.event == "BATTERY":
             if r.detail.isdigit():
@@ -174,6 +181,12 @@ def format_summary(s: Summary, dump: Dump) -> str:
     out.append(f"records {len(dump.rows)}, boots {s.boots}, skipped {dump.skipped}")
     if not dump.end_seen:
         out.append("WARNING: the dump has no end line; the log may be cut")
+    if s.firmware:
+        commits = sorted(set(s.firmware.values()))
+        if len(commits) == 1:
+            out.append(f"firmware {commits[0]}")
+        else:
+            out.append("firmware " + ", ".join(f"boot {b}: {c}" for b, c in sorted(s.firmware.items())))
     for bad in s.bad_resets:
         out.append(f"restart: {bad}")
     if s.presses:

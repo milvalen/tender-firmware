@@ -29,6 +29,7 @@
 #include "selftest.h"
 #include "shiftlog.h"
 #include "tableboard.h"
+#include "version.h"
 
 using tender::Action;
 using tender::App;
@@ -280,7 +281,8 @@ void log_events(uint32_t now) {
 
 // Prints the log as CSV, oldest first. tools/shift_log.py reads this.
 void log_dump(uint32_t now) {
-  Serial.printf("# TND-01 shift log v%d now_ms=%lu\n", sl::kVersion, static_cast<unsigned long>(now));
+  Serial.printf("# TND-01 shift log v%d now_ms=%lu fw=%s%s\n", sl::kVersion, static_cast<unsigned long>(now),
+                tender::kFirmwareCommit, tender::kFirmwareDirty ? "+dirty" : "");
   Serial.println(sl::Writer::header());
   sl::Writer writer;
   unsigned long records = 0, skipped = 0;
@@ -363,7 +365,8 @@ void st_start(uint32_t now) {
     snprintf(st_line, sizeof st_line, "vibro %d", kVibroPin);
     self_test.command(st_line, now, out, sizeof out);
   }
-  Serial.println("TND-01 self-test. Type help and press Enter.");
+  Serial.printf("TND-01 self-test, firmware %s%s. Type help and press Enter.\n", tender::kFirmwareCommit,
+                tender::kFirmwareDirty ? "+dirty" : "");
 }
 
 void st_power() {
@@ -462,7 +465,10 @@ void setup() {
   if (kBeepOnAlert) M5.Speaker.setVolume(64);
   log_ok = LittleFS.begin(true);  // formats the partition on the first boot
   log_append(sl::boot(millis(), reset_code()));
-  Serial.printf("TND-01: a/s/d/f = A/B/red/blue, uppercase = hold, ? = state, ! = self-test, L = shift log; reset: %s; log %s\n",
+  log_append(sl::firmware(tender::kFirmwareCommitU32, tender::kFirmwareDirty));
+  Serial.printf("TND-01 firmware %s%s (%s): a/s/d/f = A/B/red/blue, uppercase = hold, ? = state, ! = self-test, "
+                "L = shift log; reset: %s; log %s\n",
+                tender::kFirmwareCommit, tender::kFirmwareDirty ? "+dirty" : "", tender::kFirmwareDate,
                 reset_reason(), log_ok ? "ok" : "unavailable");
 }
 
