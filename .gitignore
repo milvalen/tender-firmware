@@ -13,3 +13,6 @@ models/
 .DS_Store
 .pio/
 ui-unit/build/
+# shift logs are records of a working day: keep them in tender-vault/_private/
+shift-*.csv
+shift-*.txt

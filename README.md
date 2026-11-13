@@ -31,7 +31,20 @@ Keys:
 
 The screen names keys by function (`NEXT`, `ACK`, `TALK`), the same words as engraved on enclosure rev 0.4. In stage 0, without the voice unit, `TALK` opens a guest request. The STEP key shows the stage it records next. The StickS3 has no vibration motor: set `kVibroPin` when one is added.
 
-Serial console (115200 baud) uses the simulator keys: `a` `s` `d` `f` = STEP, NEXT, ACK, TALK; uppercase = hold; `?` = state; `!` = board self-test.
+Serial console (115200 baud) uses the simulator keys: `a` `s` `d` `f` = STEP, NEXT, ACK, TALK; uppercase = hold; `?` = state; `!` = board self-test; `L` = print the shift log.
+
+### Shift log
+
+The device keeps a log in flash: every key action with the table and its stage after it, every high alert, each boot with the reset reason, and the battery level every 10 min. Records are 8 bytes; the last 2 files of 256 KB (up to 65,536 records) are kept. The log holds table numbers, stages and actions only.
+
+After a shift, with the device on USB:
+
+```bash
+pip install pyserial
+python3 tools/shift_log.py --port /dev/cu.usbmodem1101 --out ../tender-vault/_private/shift-2026-11-14.csv
+```
+
+The script sends `L`, saves a CSV with a wall-clock column (for the last boot only: the board has no clock) and prints a summary: presses by action, alerts, how long tables stayed in each stage against the thresholds, restarts (`BROWNOUT`, `PANIC`, `WATCHDOG`) and the battery drain. A saved dump works too: `--file dump.txt --at 2026-11-14T23:40`. Type `clearlog` in the self-test to delete the log. A shift log is a record of a working day: keep it outside the public repositories.
 
 ### Board self-test
 
@@ -46,6 +59,7 @@ For the day the boards arrive (part E of the measurement sheet and the vibrator 
 | `duty <0-128>` | motor PWM duty of 255; capped at 50 % |
 | `pulse`, `on`, `off` | one alert pattern (2 s), motor on, motor off |
 | `power`, `log` | battery line now; a battery line every 10 s on or off |
+| `clearlog` | delete the shift log |
 | `exit` | restart into the table board |
 
 The StickS3 power chip does not measure the battery current: the screen shows `I N/A`; use a multimeter. Write the results into the constants at the top of `src/main.cpp`.
@@ -82,12 +96,12 @@ Library versions are pinned to commits in `ui-unit/platformio.ini`.
 
 | Path | Contents |
 |---|---|
-| `ui-unit/lib/tableboard/` | Hardware-independent core: table board (`tableboard.h`), interface logic (`app.h`: key mapping, alerts, screen content) and the board self-test (`selftest.h`) |
+| `ui-unit/lib/tableboard/` | Hardware-independent core: table board (`tableboard.h`), interface logic (`app.h`: key mapping, alerts, screen content), the board self-test (`selftest.h`) and the shift log records (`shiftlog.h`) |
 | `ui-unit/src/main.cpp` | StickS3 glue: reads keys, draws the screen, serial console |
 | `ui-unit/sim/` | Desk-test simulator and shift script |
 | `ui-unit/test/` | Native tests of the core |
 | `voice-unit/` | Planned: Raspberry Pi Zero 2 W voice unit |
-| `tools/` | Planned: menu import, shift log export |
+| `tools/` | `shift_log.py`: read and summarise the shift log. Planned: menu import |
 
 ## Branches
 
