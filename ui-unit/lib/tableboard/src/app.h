@@ -48,7 +48,7 @@ struct Screen {
   float progress;       // 0 = no bar
   Cell strip[Board::kMaxTables];
   size_t strip_count;
-  char keys[4][16];     // bottom labels by function, in the order STEP, NEXT, ACK, REQ
+  char keys[4][16];     // bottom labels by function, in the order STEP, NEXT, ACK, TALK
   bool key_accent[4];
   size_t key_count;
   bool burst_on;        // whole screen in accent colour this frame

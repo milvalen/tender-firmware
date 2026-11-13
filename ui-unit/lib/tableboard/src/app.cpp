@@ -48,7 +48,7 @@ Action App::map(Key key, Press kind, uint32_t now) const {
       if (mode_ != KeyMode::FourKeys) return Action::None;
       return kind == Press::Short ? Action::Ack : Action::Mute;
     case Key::Blue:
-      // REQ only opens a request; STEP closes it.
+      // TALK only opens a request; STEP closes it.
       if (mode_ != KeyMode::FourKeys || open) return Action::None;
       return Action::Request;
   }
@@ -191,7 +191,7 @@ void App::screen(uint32_t now, Screen& s) const {
   }
   const char* step = sel.request_open ? "DONE" : step_label(sel.stage);
   // The label of the key that ends the alert is orange (desk test D9):
-  // REQ for a guest request, STEP for a stage alert, ACK for the dessert hint.
+  // STEP for a guest request or a stage alert, ACK for the dessert hint.
   const Need need = board_.need(sel, now);
   const bool req_due = need == Need::Request;
   const bool step_due = need == Need::Stage && prio == Priority::High;
@@ -199,7 +199,7 @@ void App::screen(uint32_t now, Screen& s) const {
   if (mode_ == KeyMode::FourKeys) {
     // Function names, the same words as engraved next to the keys
     // (design review rev 0.1, R2).
-    const char* labels[] = {step, "NEXT", "ACK", "REQ"};
+    const char* labels[] = {step, "NEXT", "ACK", "TALK"};
     for (int i = 0; i < 4; ++i) snprintf(s.keys[i], sizeof s.keys[i], "%s", labels[i]);
     s.key_accent[0] = step_due || req_due;
     s.key_accent[2] = ack_due;
@@ -209,7 +209,7 @@ void App::screen(uint32_t now, Screen& s) const {
     snprintf(s.keys[1], sizeof s.keys[1], "NEXT");
     const char* hold = prio != Priority::None ? "HOLD NEXT: ACK"
                        : sel.request_open     ? ""
-                                              : "HOLD NEXT: REQ";
+                                              : "HOLD NEXT: TALK";
     snprintf(s.keys[2], sizeof s.keys[2], "%s", hold);
     s.key_accent[0] = step_due || req_due;
     s.key_accent[2] = ack_due;

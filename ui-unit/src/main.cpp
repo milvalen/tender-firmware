@@ -7,7 +7,7 @@
 // Keys (enclosure rev 0.2 engraves the function next to each key):
 //   4-key mode (M5Stack Dual Button unit on the Grove port, kHasDualButton):
 //     STEP = key A (front), hold UNDO | NEXT = key B (top), hold PREV
-//     ACK = red key, hold MUTE        | REQ = blue key
+//     ACK = red key, hold MUTE        | TALK = blue key
 //   2-key mode (StickS3 alone):
 //     STEP, hold UNDO | NEXT; hold NEXT closes an open request, else ACK
 //     while an alert is shown, else opens a request
