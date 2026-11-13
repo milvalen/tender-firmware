@@ -16,7 +16,8 @@ What it does:
 - stage timers with approved thresholds: take order 3 min, offer dessert 15 min, bring check 3 min, guest request 2 min;
 - 2 alert levels: high alerts (guest waits) flash once and move the selection to the table, then return after 3 min if not handled; low alerts (dessert) are only marked, and ACK removes them;
 - table stages `SEAT` → `ORD` → `MAIN` → `BILL` → `FREE`, with no dessert stage; the STEP key label names the next stage: `ORDER`, `SERVED`, `CHECK`, `CLEAR`;
-- a 1 s confirmation after every press; one-step undo;
+- a 1 s confirmation after every press; one-step undo, and for 5 s after each STEP the key shows `HOLD: UNDO`;
+- during an alert the label of the key that ends it is orange: `REQ` for a guest request, the STEP key for a stage alert, `ACK` for the dessert hint;
 - a table strip shows all tables by number in fixed places, `1 2 3 [4] 5 6 7 8`; NEXT moves the box to the right, hold NEXT (4-key mode) to the left; tables that need an action are orange.
 
 Keys:

@@ -93,6 +93,7 @@ struct AlertRec {
   bool missed = false;
   bool false_alarm = false;
   uint32_t handled_at = 0;
+  bool request = false;  // a guest request; else a stage alert
 };
 
 struct WrongAction {
@@ -215,7 +216,8 @@ class Desk {
   }
 
   void on_alert(uint32_t now) {
-    AlertRec a{board_.selected().number, now, true, false, false, false, 0};
+    AlertRec a{board_.selected().number, now, true, false, false, false, 0,
+               board_.need(board_.selected(), now) == Need::Request};
     PartyState* p = party(a.table);
     a.false_alarm = p && p->phase == Phase::Check && p->check_brought;
     alerts.push_back(a);
@@ -223,9 +225,15 @@ class Desk {
     note(now, "ALERT %s %s%s", label(a.table).c_str(), text ? text : "", a.false_alarm ? " (check already brought)" : "");
   }
 
-  void handle_alerts(uint8_t table, uint32_t now, bool all) {
+  // all: ACK or MUTE, ends every open alert. Else only the alerts on the
+  // table that this action ends: REQUEST a request alert, STEP a stage alert.
+  static bool ends(Action a, const AlertRec& r) {
+    return (a == Action::Request && r.request) || (a == Action::Step && !r.request);
+  }
+
+  void handle_alerts(uint8_t table, uint32_t now, bool all, Action action = Action::None) {
     for (AlertRec& a : alerts) {
-      if (!a.open || (!all && a.table != table)) continue;
+      if (!a.open || (!all && (a.table != table || !ends(action, a)))) continue;
       a.open = false;
       a.handled = true;
       a.handled_at = now;
@@ -257,7 +265,7 @@ class Desk {
       }
     }
     for (const AlertRec& r : alerts)
-      if (r.open && r.table == table) valid = true;
+      if (r.open && r.table == table && ends(a, r)) valid = true;
     PartyState* p = party(table);
     if (a == Action::Step && before == Stage::Seat && p && p->phase == Phase::Seated && p->p->order_after_s < 0)
       valid = true;  // taking the order is the server's own move
@@ -271,7 +279,7 @@ class Desk {
       }
     }
     const bool extra = !valid && p && p->phase != Phase::Done;
-    if (valid) handle_alerts(table, now, false);
+    if (valid) handle_alerts(table, now, false, a);
     else wrong.push_back(WrongAction{table, now, a, false, extra});
     note(now, "KEY %s on %s%s", action_name(a), label(table).c_str(),
          valid ? "" : extra ? "  << EXTRA PRESS" : "  << WRONG TABLE");

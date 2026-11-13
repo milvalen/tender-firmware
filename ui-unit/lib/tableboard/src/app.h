@@ -26,6 +26,7 @@ struct Timing {
   uint32_t toast_ms = 1200;
   uint32_t dim_after_ms = 20000;
   uint32_t idle_resort_ms = 10000;
+  uint32_t undo_hint_ms = 5000;  // STEP key shows HOLD: UNDO after a STEP (desk test D10)
 };
 
 struct Screen {
@@ -88,6 +89,8 @@ class App {
   uint32_t burst_until_ = 0;
   uint32_t toast_until_ = 0;
   char toast_[28] = "";
+  uint32_t undo_until_ = 0;
+  uint8_t undo_table_ = 0;
   int battery_ = -1;
 };
 

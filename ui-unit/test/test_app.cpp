@@ -100,7 +100,9 @@ static void test_alert_burst_then_steady() {
   CHECK(s.burst_on);
   CHECK(s.table_accent);
   CHECK(strcmp(s.keys[2], "HOLD NEXT: ACK") == 0);
-  CHECK(s.key_accent[2]);
+  CHECK(strcmp(s.keys[0], "ORDER") == 0);
+  CHECK(s.key_accent[0]);   // STEP ends a "take order" alert
+  CHECK(!s.key_accent[2]);  // ACK only snoozes it
   CHECK(app.vibrate(due));
   app.screen(due + 2500, s);  // burst is over, marker stays
   CHECK(!s.burst_on);
@@ -171,10 +173,10 @@ static void test_step_label_and_dessert_hint() {
   CHECK(strcmp(s.keys[0], "SEAT") == 0);
   app.press(Key::A, Press::Short, 1000);
   app.press(Key::A, Press::Short, 1000);
-  app.screen(1000, s);
+  app.screen(7000, s);  // after the undo hint
   CHECK(strcmp(s.keys[0], "SERVED") == 0);
   app.press(Key::A, Press::Short, 1000);  // mains served
-  app.screen(1000, s);
+  app.screen(7000, s);
   CHECK(strcmp(s.keys[0], "CHECK") == 0);  // no dessert stage in the way
   const uint32_t hint = 1000 + 15 * M;
   app.screen(hint, s);
@@ -184,6 +186,35 @@ static void test_step_label_and_dessert_hint() {
   CHECK(strstr(s.line2, "DESSERT OFFERED") != nullptr);
   app.screen(hint + 5000, s);
   CHECK(!s.strip[0].accent);  // hint gone
+}
+
+static void test_alert_key_and_undo_hint() {
+  Board b(kTables, 4);
+  App app(b, KeyMode::FourKeys);
+  Screen s;
+  app.press(Key::Blue, Press::Short, 1000);  // open a request on TBL-01
+  const uint32_t due = 1000 + 2 * M;
+  app.tick(due);
+  app.screen(due, s);
+  CHECK(s.key_accent[3]);   // REQ ends a request alert
+  CHECK(!s.key_accent[0]);
+  CHECK(!s.key_accent[2]);
+  // After a STEP the STEP key shows how to take it back, for 5 s.
+  app.press(Key::A, Press::Short, due);
+  app.screen(due + 1000, s);
+  CHECK(strcmp(s.keys[0], "HOLD: UNDO") == 0);
+  app.screen(due + 5000, s);
+  CHECK(strcmp(s.keys[0], "ORDER") == 0);
+  // Not on another table.
+  app.press(Key::A, Press::Short, due + 6000);
+  app.press(Key::B, Press::Short, due + 6000);
+  app.screen(due + 6500, s);
+  CHECK(strcmp(s.keys[0], "SEAT") == 0);
+  // Undo ends the hint.
+  app.press(Key::B, Press::Long, due + 7000);  // back to TBL-01
+  app.press(Key::A, Press::Long, due + 7000);  // ORD back to SEAT
+  app.screen(due + 7500, s);
+  CHECK(strcmp(s.keys[0], "ORDER") == 0);
 }
 
 int main() {
@@ -196,6 +227,7 @@ int main() {
   test_low_battery();
   test_table_strip();
   test_step_label_and_dessert_hint();
+  test_alert_key_and_undo_hint();
   printf("app: %d checks, %d failed\n", checks, failures);
   return failures == 0 ? 0 : 1;
 }

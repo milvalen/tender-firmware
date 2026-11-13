@@ -68,8 +68,11 @@ void App::run(Action a, uint32_t now) {
     case Action::Step:
       board_.step(now);
       toast_table(stage_status(board_.selected().stage), now);
+      undo_until_ = now + timing_.undo_hint_ms;
+      undo_table_ = board_.selected().number;
       break;
     case Action::Undo:
+      undo_until_ = now;
       if (board_.undo(now)) toast_table("UNDONE", now);
       else toast("NOTHING TO UNDO", now);
       break;
@@ -174,22 +177,34 @@ void App::screen(uint32_t now, Screen& s) const {
     c.high = p == Priority::High;
   }
 
+  // The STEP key names what it records next (desk test D6). For 5 s after a
+  // STEP it shows how to take the STEP back (D10).
+  const bool undo_hint = reached(now, undo_until_) && sel.number == undo_table_ && sel.can_undo;
+  const char* step = undo_hint ? "HOLD: UNDO" : step_label(sel.stage);
+  // The label of the key that ends the alert is orange (desk test D9):
+  // REQ for a guest request, STEP for a stage alert, ACK for the dessert hint.
+  const Need need = board_.need(sel, now);
+  const bool req_due = need == Need::Request;
+  const bool step_due = need == Need::Stage && prio == Priority::High;
+  const bool ack_due = prio == Priority::Low;
   if (mode_ == KeyMode::FourKeys) {
     // Function names, the same words as engraved next to the keys
     // (design review rev 0.1, R2).
-    // The STEP key names what it records next (desk test D6).
-    const char* labels[] = {step_label(sel.stage), "NEXT", "ACK", "REQ"};
+    const char* labels[] = {step, "NEXT", "ACK", "REQ"};
     for (int i = 0; i < 4; ++i) snprintf(s.keys[i], sizeof s.keys[i], "%s", labels[i]);
-    s.key_accent[2] = prio != Priority::None;
+    s.key_accent[0] = step_due && !undo_hint;
+    s.key_accent[2] = ack_due;
+    s.key_accent[3] = req_due;
     s.key_count = 4;
   } else {
-    snprintf(s.keys[0], sizeof s.keys[0], "%s", step_label(sel.stage));
+    snprintf(s.keys[0], sizeof s.keys[0], "%s", step);
     snprintf(s.keys[1], sizeof s.keys[1], "NEXT");
     const char* hold = sel.request_open           ? "HOLD NEXT: DONE"
                        : prio != Priority::None ? "HOLD NEXT: ACK"
                                                 : "HOLD NEXT: REQ";
     snprintf(s.keys[2], sizeof s.keys[2], "%s", hold);
-    s.key_accent[2] = prio != Priority::None;
+    s.key_accent[0] = step_due && !undo_hint;
+    s.key_accent[2] = req_due || ack_due;
     s.key_count = 3;
   }
 }
