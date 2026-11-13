@@ -1,0 +1,50 @@
+# Checks for every agent branch and every pull request into dev or main:
+# native tests (core, simulator, tools) and the StickS3 firmware build.
+# The two jobs run in parallel; the PlatformIO packages are cached, so a
+# run takes about a minute (target set by Artemy Erkov, 2026-11-13).
+name: ci
+
+on:
+  push:
+    branches: [dev, main, "ai/**"]
+  pull_request:
+    branches: [dev, main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: native tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Core, simulator and shift log tool tests
+        run: make -C ui-unit -j4 test CXX=clang++
+
+  firmware:
+    name: StickS3 build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.platformio
+            ~/.cache/pip
+            ui-unit/.pio
+          key: pio-${{ runner.os }}-${{ hashFiles('ui-unit/platformio.ini') }}
+          restore-keys: pio-${{ runner.os }}-
+      - name: Install PlatformIO
+        run: pip install platformio==6.2.0
+      - name: Build
+        run: pio run -d ui-unit
