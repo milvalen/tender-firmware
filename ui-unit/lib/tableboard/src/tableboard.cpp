@@ -10,6 +10,7 @@ uint32_t Config::threshold(Stage s) const {
     case Stage::Ord: return ord_ms;
     case Stage::Main: return main_ms;
     case Stage::Bill: return bill_ms;
+    case Stage::Pay: return pay_ms;
     case Stage::Free: break;
   }
   return kNoThreshold;
@@ -22,6 +23,7 @@ const char* stage_name(Stage s) {
     case Stage::Ord: return "ORD";
     case Stage::Main: return "MAIN";
     case Stage::Bill: return "BILL";
+    case Stage::Pay: return "PAY";
   }
   return "?";
 }
@@ -33,6 +35,7 @@ const char* stage_status(Stage s) {
     case Stage::Ord: return "ORDER TAKEN";
     case Stage::Main: return "MAINS SERVED";
     case Stage::Bill: return "CHECK REQUESTED";
+    case Stage::Pay: return "CHECK BROUGHT";
   }
   return "?";
 }
@@ -62,7 +65,8 @@ Stage next_stage(Stage s) {
     case Stage::Seat: return Stage::Ord;
     case Stage::Ord: return Stage::Main;
     case Stage::Main: return Stage::Bill;
-    case Stage::Bill: return Stage::Free;
+    case Stage::Bill: return Stage::Pay;
+    case Stage::Pay: return Stage::Free;
   }
   return Stage::Free;
 }
@@ -73,6 +77,7 @@ const char* step_label(Stage current) {
     case Stage::Ord: return "ORDER";
     case Stage::Main: return "SERVED";
     case Stage::Bill: return "CHECK";
+    case Stage::Pay: return "BROUGHT";
     case Stage::Free: return "CLEAR";
   }
   return "STEP";

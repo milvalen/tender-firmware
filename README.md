@@ -15,7 +15,7 @@ What it does:
 - the selected table and what to do now: `TBL-07` / `BRING CHECK`;
 - stage timers with approved thresholds: take order 3 min, offer dessert 15 min, bring check 3 min, guest request 2 min;
 - 2 alert levels: high alerts (guest waits) flash once and move the selection to the table, then return after 3 min if not handled; low alerts (dessert) are only marked, and ACK removes them;
-- table stages `SEAT` → `ORD` → `MAIN` → `BILL` → `FREE`, with no dessert stage; the STEP key label names the next stage: `ORDER`, `SERVED`, `CHECK`, `CLEAR`;
+- table stages `SEAT` → `ORD` → `MAIN` → `BILL` → `PAY` → `FREE`, with no dessert stage; the STEP key label names the next stage: `ORDER`, `SERVED`, `CHECK`, `BROUGHT`, `CLEAR`. `PAY` (check brought, the guests pay) has no timer, so a slow payment gives no `BRING CHECK` alert;
 - a 1 s confirmation after every press; one-step undo, and for 5 s after each STEP the status line shows `HOLD STEP = UNDO`;
 - STEP means "done": with an open guest request it reads `DONE` and closes the request; TALK only opens a request;
 - during an alert the label of the key that ends it is orange: the STEP key (`DONE`) for a guest request or a stage alert, `ACK` for the dessert hint;
