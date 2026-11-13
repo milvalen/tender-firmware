@@ -105,4 +105,4 @@ Library versions are pinned to commits in `ui-unit/platformio.ini`.
 
 ## Branches
 
-`dev` is the default branch. `main` is the release branch and is never ahead of `dev`. Agents work in `ai/<area>` branches and merge them into `feature/<area>`. The owner reviews and accepts the work on `feature/<area>`; then it is merged into `dev`.
+`dev` is the default branch. `main` is the release branch and is never ahead of `dev`. Agents work in `ai/<area>` branches, merge them into `feature/<area>` and open a pull request from `feature/<area>` into `dev`. The owner reviews and merges the pull request.
