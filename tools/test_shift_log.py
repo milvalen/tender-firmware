@@ -14,9 +14,10 @@ import shift_log  # noqa: E402
 # The lines match the formats checked in ui-unit/test/test_shiftlog.cpp.
 DUMP = """\
 TND-01: a/s/d/f = A/B/red/blue, uppercase = hold, ? = state
-# TND-01 shift log v1 now_ms=4000000
+# TND-01 shift log v1 now_ms=4000000 fw=ec29f0ba
 boot,ms,event,table,stage,detail
 1,100,BOOT,,,reset=POWERON
+1,100,FIRMWARE,,,commit=d5a8b011
 1,5000,BATTERY,,,90
 1,60000,STEP,7,SEAT,request=0 muted=0
 1,240000,ALERT,7,SEAT,TAKE ORDER
@@ -32,10 +33,11 @@ boot,ms,event,table,stage,detail
 1,2000000,STEP,7,FREE,request=0 muted=0
 1,1805000,BATTERY,,,84
 2,90,BOOT,,,reset=BROWNOUT
+2,90,FIRMWARE,,,commit=ec29f0ba
 2,3000,MUTE,8,ORD,request=0 muted=1
 2,3600100,BATTERY,,,80
 2,3600200,ALERT,8,ORD,GUEST REQUEST
-# end records=19 skipped=1 boots=2 log=ok
+# end records=21 skipped=1 boots=2 log=ok
 garbage after the end
 """
 
@@ -49,11 +51,12 @@ class ShiftLogTest(unittest.TestCase):
         self.assertEqual(d.now_ms, 4000000)
         self.assertTrue(d.end_seen)
         self.assertEqual(d.skipped, 1)
-        self.assertEqual(len(d.rows), 19)
+        self.assertEqual(len(d.rows), 21)
+        self.assertEqual(d.firmware_now, "ec29f0ba")
         self.assertEqual(d.rows[0].event, "BOOT")
         self.assertIsNone(d.rows[0].table)
-        self.assertEqual(d.rows[2].table, 7)
-        self.assertEqual(d.rows[2].detail, "request=0 muted=0")
+        self.assertEqual(d.rows[3].table, 7)
+        self.assertEqual(d.rows[3].detail, "request=0 muted=0")
 
     def test_summary(self):
         s = shift_log.summarise(self.dump)
@@ -70,6 +73,7 @@ class ShiftLogTest(unittest.TestCase):
         self.assertEqual([round(m, 2) for m in s.stage_minutes["PAY"]], [5.17])
         text = shift_log.format_summary(s, self.dump)
         self.assertIn("restart: boot 2: BROWNOUT", text)
+        self.assertIn("firmware boot 1: d5a8b011, boot 2: ec29f0ba", text)
         self.assertIn("alerts   2", text)
         self.assertIn("SEAT          1    3.2   3.2      3 min     1", text)
         self.assertIn("PAY           1    5.2   5.2          -     -", text)
@@ -107,7 +111,7 @@ class ShiftLogTest(unittest.TestCase):
             self.assertEqual(lines[0], "time,boot,ms,event,table,stage,detail")
             self.assertEqual(lines[1], ",1,100,BOOT,,,reset=POWERON")
             self.assertEqual(lines[-1], "2026-11-13T23:33:20,2,3600200,ALERT,8,ORD,GUEST REQUEST")
-            self.assertEqual(len(lines), 20)
+            self.assertEqual(len(lines), 22)
 
 
 if __name__ == "__main__":
