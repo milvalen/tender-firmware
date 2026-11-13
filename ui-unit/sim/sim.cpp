@@ -180,7 +180,7 @@ int interactive(const Options& o) {
     return 2;
   }
   Session session(o.mode);
-  GameState game{kShiftStart, o.speed, /*paused=*/true, /*started=*/false, o.mode};
+  GameState game{kShiftStart, o.speed, /*paused=*/true, /*started=*/false, o.mode, /*vibrate=*/false};
   ShiftClock clock(kShiftStart);
   const uint32_t end = shift_time(kShiftSeconds);
   {
@@ -191,6 +191,7 @@ int interactive(const Options& o) {
       for (size_t i = 0; i < n; ++i) handle_key(keys[i], session, game);
       game.now = clock.advance(game.paused, game.speed);
       if (session.tick(game.now)) fputs("\a", stdout);  // bell on a high alert
+      game.vibrate = session.app().vibrate(game.now);
       tender::Screen screen;
       session.app().screen(game.now, screen);
       draw_game(screen, session.floor().lines(), game);
