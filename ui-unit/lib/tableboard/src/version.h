@@ -24,6 +24,8 @@ namespace tender {
 constexpr const char* kFirmwareCommit = TND_COMMIT;
 constexpr uint32_t kFirmwareCommitU32 = static_cast<uint32_t>(TND_COMMIT_U32);
 constexpr bool kFirmwareDirty = TND_DIRTY != 0;
+// "+dirty" after the commit when the build had uncommitted changes, else "".
+constexpr const char* kFirmwareDirtyMark = kFirmwareDirty ? "+dirty" : "";
 constexpr const char* kFirmwareDate = TND_BUILD_DATE;
 
 }  // namespace tender
