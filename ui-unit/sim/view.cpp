@@ -31,12 +31,13 @@ std::string fg(int colour) { return "\x1b[38;5;" + std::to_string(colour) + "m";
 std::string bg(int colour) { return "\x1b[48;5;" + std::to_string(colour) + "m"; }
 
 // Text styles on the device screen. During a burst the screen is orange and
-// all text is black.
+// all text is black. With the backlight off nothing is seen.
 struct Styles {
   std::string paper, grey, accent;
 };
 
 Styles styles_for(const Screen& s) {
+  if (s.off) return {bg(kBlack) + fg(kBlack), bg(kBlack) + fg(kBlack), bg(kBlack) + fg(kBlack)};  // backlight off
   const std::string base = (s.burst_on ? bg(kOrange) : bg(kBlack)) + (s.dim ? kFaint : "");
   if (s.burst_on) return {base + fg(kBlack), base + fg(kBlack), base + fg(kBlack)};
   return {base + kBrightWhite, base + fg(kGrey), base + fg(kOrange)};

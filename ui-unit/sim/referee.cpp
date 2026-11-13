@@ -101,7 +101,11 @@ void Referee::key_press(Key key, Press kind, Action action, uint8_t table, const
     ++nav_presses_;
     return;
   }
-  if (action == Action::Ack || action == Action::Mute) {
+  if (action == Action::Mute) {  // quiet floor on or off: alerts still come
+    log_.add(now, "KEY %s", tender::action_name(action));
+    return;
+  }
+  if (action == Action::Ack) {
     log_.add(now, "KEY %s on %s", tender::action_name(action), table_name(table).c_str());
     handle_all_alerts(now);
     return;

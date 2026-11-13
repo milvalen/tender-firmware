@@ -19,6 +19,7 @@ What it does:
 - a 1 s confirmation after every press; one-step undo, and for 5 s after each STEP the status line shows `HOLD STEP = UNDO`;
 - STEP means "done": with an open guest request it reads `DONE` and closes the request; TALK only opens a request;
 - during an alert the label of the key that ends it is orange: the STEP key (`DONE`) for a guest request or a stage alert, `ACK` for the dessert hint;
+- hold ACK turns `MUTED` (quiet floor) on or off; it stays on until the next hold. In `MUTED` alerts come by vibration only, with no screen burst, and the screen turns off when idle; the first key press only turns it on. Outside `MUTED` the idle screen dims;
 - a table strip shows all tables by number in fixed places, `1 2 3 [4] 5 6 7 8`; NEXT moves the box to the right, hold NEXT (4-key mode) to the left; tables that need an action are orange.
 
 Keys:
