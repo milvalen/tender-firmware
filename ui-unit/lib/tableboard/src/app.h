@@ -53,6 +53,7 @@ struct Screen {
   size_t key_count;
   bool burst_on;        // whole screen in accent colour this frame
   bool dim;             // backlight low
+  bool off;             // backlight off: MUTED and idle; a key press turns it on
 };
 
 class App {
@@ -67,9 +68,10 @@ class App {
   void set_battery(int level) { battery_ = level; }
 
   void screen(uint32_t now, Screen& out) const;
-  bool vibrate(uint32_t now) const;  // vibration motor on this frame
+  bool vibrate(uint32_t now) const;  // vibration motor on this frame, also when MUTED
   bool busy(uint32_t now) const;     // needs fast redraws (burst or toast)
   bool idle(uint32_t now) const { return now - last_input_ >= timing_.dim_after_ms; }
+  bool screen_off(uint32_t now) const;  // MUTED and idle
 
   Board& board() { return board_; }
   KeyMode mode() const { return mode_; }
@@ -86,7 +88,7 @@ class App {
   Timing timing_;
   uint32_t last_input_ = 0;
   uint32_t last_idle_resort_ = 0;
-  uint32_t burst_until_ = 0;
+  uint32_t alert_until_ = 0;  // alert pattern: screen burst and vibration
   uint32_t toast_until_ = 0;
   char toast_[28] = "";
   uint32_t undo_until_ = 0;

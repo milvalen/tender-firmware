@@ -63,7 +63,7 @@ static void test_four_key_mapping() {
   CHECK(app.press(Key::B, Press::Long, now) == Action::Prev);
   CHECK(app.press(Key::Red, Press::Short, now) == Action::Ack);
   CHECK(app.press(Key::Red, Press::Long, now) == Action::Mute);
-  CHECK(b.muted(now));
+  CHECK(b.muted());
   CHECK(app.press(Key::Blue, Press::Short, now) == Action::Request);
   Screen s;
   app.screen(now, s);
@@ -112,6 +112,71 @@ static void test_alert_burst_then_steady() {
   CHECK(!s.burst_on);
   CHECK(s.table_accent);
   CHECK(!app.tick(due + 2500));  // one burst only
+}
+
+// MUTED is the quiet floor mode (vault decision 2026-11-13).
+static void test_mute_toggles_without_timeout() {
+  Board b(kTables, 4);
+  App app(b, KeyMode::FourKeys);
+  CHECK(app.press(Key::Red, Press::Long, 1000) == Action::Mute);
+  CHECK(b.muted());
+  Screen s;
+  app.screen(1100, s);
+  CHECK(strcmp(s.line2, "MUTED ON") == 0);
+  CHECK(strstr(s.status, "MUTED") != nullptr);
+  app.tick(1000 + 120 * M);
+  CHECK(b.muted());  // no timeout
+  app.press(Key::A, Press::Short, 1000 + 120 * M);  // wake the screen
+  CHECK(app.press(Key::Red, Press::Long, 1000 + 120 * M + 100) == Action::Mute);
+  CHECK(!b.muted());
+  app.screen(1000 + 120 * M + 200, s);
+  CHECK(strcmp(s.line2, "MUTED OFF") == 0);
+  CHECK(strstr(s.status, "MUTED") == nullptr);
+}
+
+static void test_muted_alert_vibrates_without_burst() {
+  Board b(kTables, 4);
+  App app(b, KeyMode::FourKeys);
+  app.press(Key::A, Press::Short, 1000);  // seated at 1000
+  app.press(Key::Red, Press::Long, 2000);
+  const uint32_t due = 1000 + 3 * M;
+  CHECK(app.tick(due));  // the alert still fires
+  CHECK(app.vibrate(due));
+  Screen s;
+  app.screen(due, s);
+  CHECK(!s.burst_on);  // no screen burst
+  CHECK(s.table_accent);
+  CHECK(s.off);  // the alert does not turn the screen on
+  CHECK(!app.vibrate(due + 2500));
+  // ACK still stops it, and it comes back after 3 min.
+  app.press(Key::Red, Press::Short, due + 100);  // wakes the screen only
+  CHECK(app.press(Key::Red, Press::Short, due + 200) == Action::Ack);
+  CHECK(!app.vibrate(due + 300));
+  CHECK(!app.tick(due + 200 + 3 * M - 1));
+  CHECK(app.tick(due + 200 + 3 * M));
+}
+
+static void test_muted_screen_off_when_idle() {
+  Board b(kTables, 4);
+  App app(b, KeyMode::FourKeys);
+  app.press(Key::Red, Press::Long, 1000);
+  CHECK(!app.screen_off(1000 + 19000));
+  CHECK(app.screen_off(1000 + 20000));
+  Screen s;
+  app.screen(1000 + 20000, s);
+  CHECK(s.off);
+  // The first press only turns the screen on; it does not act.
+  const uint8_t sel = b.selected().number;
+  CHECK(app.press(Key::B, Press::Short, 1000 + 20000) == Action::None);
+  CHECK(b.selected().number == sel);
+  CHECK(!app.screen_off(1000 + 20001));
+  CHECK(app.press(Key::B, Press::Short, 1000 + 20100) == Action::Next);
+  // Without MUTED the screen only dims.
+  app.press(Key::Red, Press::Long, 1000 + 20200);
+  CHECK(!b.muted());
+  app.screen(1000 + 20200 + 20000, s);
+  CHECK(s.dim);
+  CHECK(!s.off);
 }
 
 static void test_ack_stops_burst() {
@@ -233,6 +298,9 @@ int main() {
   test_toast_after_step();
   test_alert_burst_then_steady();
   test_ack_stops_burst();
+  test_mute_toggles_without_timeout();
+  test_muted_alert_vibrates_without_burst();
+  test_muted_screen_off_when_idle();
   test_dim_when_idle();
   test_low_battery();
   test_table_strip();
