@@ -18,6 +18,7 @@ struct GameState {
   bool paused;
   bool started;  // false: show the intro
   tender::KeyMode mode;
+  bool vibrate;  // the vibration motor runs this frame (also in MUTED)
 };
 
 // The device screen as terminal rows, with a frame around it.
