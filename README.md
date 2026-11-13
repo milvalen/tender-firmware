@@ -35,7 +35,7 @@ Serial console (115200 baud) uses the simulator keys: `a` `s` `d` `f` = STEP, NE
 
 ### Shift log
 
-The device keeps a log in flash: every key action with the table and its stage after it, every high alert, each boot with the reset reason, and the battery level every 10 min. Records are 8 bytes; the last 2 files of 256 KB (up to 65,536 records) are kept. The log holds table numbers, stages and actions only.
+The device keeps a log in flash: every key action with the table and its stage after it, every high alert, each boot with the reset reason and the firmware commit, and the battery level every 10 min. Records are 8 bytes; the last 2 files of 256 KB (up to 65,536 records) are kept. The log holds table numbers, stages and actions only.
 
 After a shift, with the device on USB:
 
@@ -90,7 +90,7 @@ pio run -t upload       # flash over USB-C
 pio device monitor      # serial console
 ```
 
-Library versions are pinned to commits in `ui-unit/platformio.ini`.
+Library versions are pinned to commits in `ui-unit/platformio.ini`. `ui-unit/scripts/version.py` puts the git commit of the build into the firmware (`+dirty` if the work tree had changes); the board prints it at boot, in the self-test and in the shift log.
 
 ## Layout
 
