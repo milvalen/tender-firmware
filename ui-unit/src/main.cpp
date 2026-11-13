@@ -231,12 +231,12 @@ void loop() {
   if (handle_keys(now) | handle_serial(now)) dirty = true;
   if (app.tick(now)) {
     dirty = true;
-    if (kBeepOnAlert) M5.Speaker.tone(2000, 80);
+    if (kBeepOnAlert && !app.board().muted()) M5.Speaker.tone(2000, 80);
   }
 
   app.set_battery(M5.Power.getBatteryLevel());
   if (kVibroPin >= 0) digitalWrite(kVibroPin, app.vibrate(now) ? HIGH : LOW);
-  M5.Display.setBrightness(app.idle(now) ? kDim : kBright);
+  M5.Display.setBrightness(app.screen_off(now) ? 0 : app.idle(now) ? kDim : kBright);
 
   if (dirty || app.busy(now) || now - last_redraw >= kRedrawMs) {
     Screen s;

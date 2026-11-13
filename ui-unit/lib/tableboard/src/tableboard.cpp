@@ -138,8 +138,6 @@ void Board::ack(uint32_t now) {
   }
 }
 
-void Board::mute(uint32_t now) { muted_until_ = now + cfg_.mute_ms; }
-
 Need Board::need(const Table& t, uint32_t now) const {
   if (t.request_open && now - t.request_since >= cfg_.request_ms) return Need::Request;
   uint32_t th = cfg_.threshold(t.stage);
@@ -171,7 +169,6 @@ static bool time_reached(uint32_t now, uint32_t at) {
 }
 
 bool Board::poll_alert(uint32_t now) {
-  if (muted(now)) return false;
   int best = -1;
   int64_t best_u = 0;
   for (size_t i = 0; i < count_; ++i) {

@@ -25,9 +25,11 @@ App::App(Board& board, KeyMode mode, Timing timing)
 static bool reached(uint32_t now, uint32_t until) { return static_cast<int32_t>(now - until) < 0; }
 
 bool App::blink_on(uint32_t now) const {
-  if (!reached(now, burst_until_)) return false;
-  return ((burst_until_ - now) / timing_.burst_blink_ms) % 2 == 0;
+  if (!reached(now, alert_until_)) return false;
+  return ((alert_until_ - now) / timing_.burst_blink_ms) % 2 == 0;
 }
+
+bool App::screen_off(uint32_t now) const { return board_.muted() && idle(now); }
 
 Action App::map(Key key, Press kind, uint32_t now) const {
   // Any hint on the selected table (a waiting guest or the dessert hint) can be acknowledged.
@@ -85,15 +87,15 @@ void App::run(Action a, uint32_t now) {
     case Action::Ack: {
       const bool dessert = board_.priority(board_.selected(), now) == Priority::Low;
       board_.ack(now);
-      burst_until_ = now;
+      alert_until_ = now;
       if (dessert) toast_table("DESSERT OFFERED", now);
       else toast("OK, AGAIN IN 3 MIN", now);
       break;
     }
     case Action::Mute:
-      board_.mute(now);
-      burst_until_ = now;
-      toast("MUTED 10 MIN", now);
+      board_.toggle_mute();
+      alert_until_ = now;
+      toast(board_.muted() ? "MUTED ON" : "MUTED OFF", now);
       break;
     case Action::Request:
       board_.request(now);
@@ -104,6 +106,13 @@ void App::run(Action a, uint32_t now) {
 }
 
 Action App::press(Key key, Press kind, uint32_t now) {
+  // With the screen off (MUTED, idle), the first press only turns it on:
+  // the server cannot see which table is selected.
+  if (screen_off(now)) {
+    board_.resort(now);
+    last_input_ = now;
+    return Action::None;
+  }
   Action a = map(key, kind, now);
   if (a == Action::None) return a;
   if (idle(now)) board_.resort(now);  // the server starts reading: order it now
@@ -115,8 +124,9 @@ Action App::press(Key key, Press kind, uint32_t now) {
 bool App::tick(uint32_t now) {
   bool alert = board_.poll_alert(now);
   if (alert) {
-    burst_until_ = now + timing_.burst_ms;
-    last_input_ = now;  // wake the screen
+    alert_until_ = now + timing_.burst_ms;
+    // MUTED: vibration only, the screen stays as it is (off when idle).
+    if (!board_.muted()) last_input_ = now;  // wake the screen
   }
   if (idle(now) && now - last_idle_resort_ >= timing_.idle_resort_ms) {
     board_.resort(now);  // nobody is reading: safe to reorder
@@ -128,7 +138,7 @@ bool App::tick(uint32_t now) {
 bool App::vibrate(uint32_t now) const { return blink_on(now); }
 
 bool App::busy(uint32_t now) const {
-  return reached(now, burst_until_) || reached(now, toast_until_ + 500);
+  return reached(now, alert_until_) || reached(now, toast_until_ + 500);
 }
 
 static void minutes_text(const Board& b, const Table& t, uint32_t now, char* buf, size_t len) {
@@ -142,12 +152,13 @@ static void minutes_text(const Board& b, const Table& t, uint32_t now, char* buf
 
 void App::screen(uint32_t now, Screen& s) const {
   memset(&s, 0, sizeof s);
-  s.burst_on = blink_on(now);
+  s.burst_on = blink_on(now) && !board_.muted();  // MUTED: no screen burst
   s.dim = idle(now);
+  s.off = screen_off(now);
 
   // Status: only what needs attention.
   if (battery_ >= 0 && battery_ < 25) snprintf(s.status, sizeof s.status, "LOW BATTERY");
-  if (board_.muted(now)) {
+  if (board_.muted()) {
     size_t n = strlen(s.status);
     snprintf(s.status + n, sizeof s.status - n, "%sMUTED", n ? "  " : "");
   }

@@ -128,9 +128,14 @@ static void test_ack_and_mute() {
   b.ack(4 * M);
   CHECK(!b.poll_alert(7 * M - 1));
   CHECK(b.poll_alert(7 * M));
-  b.mute(7 * M);
-  CHECK(!b.poll_alert(17 * M - 1));
-  CHECK(b.poll_alert(17 * M));
+  // MUTED (quiet floor) does not stop alerts and has no timeout.
+  b.toggle_mute();
+  CHECK(b.muted());
+  CHECK(!b.poll_alert(10 * M - 1));
+  CHECK(b.poll_alert(10 * M));
+  CHECK(b.muted());
+  b.toggle_mute();
+  CHECK(!b.muted());
   b.step(17 * M);  // order taken: no more alerts for this table
   CHECK(!b.any_high(17 * M));
   CHECK(!b.poll_alert(30 * M));

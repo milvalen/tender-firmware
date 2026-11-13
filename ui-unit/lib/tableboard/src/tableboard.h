@@ -9,7 +9,9 @@
 //   UNDO     reverts the last STEP of the selected table
 //   ACK      stops the current alert; high alerts come back after 3 min;
 //            on the selected table it also clears the dessert hint
-//   MUTE     mutes all alerts for 10 min
+//   MUTE     quiet floor on or off: alerts by vibration only, no screen
+//            burst, the screen turns off when idle; stays on until the next
+//            MUTE (vault decision 2026-11-13)
 //   REQUEST  opens a guest request with a 2 min timer; a second press closes it
 //
 // Alerts have 2 priorities. High (guest waits: order not taken, check
@@ -46,7 +48,6 @@ struct Config {
   // A high alert that is not handled comes back after this time.
   uint32_t realert_ms = 3 * kMinute;
   uint32_t ack_snooze_ms = 3 * kMinute;
-  uint32_t mute_ms = 10 * kMinute;
 
   uint32_t threshold(Stage s) const;
 };
@@ -79,7 +80,7 @@ class Board {
   void request(uint32_t now);
   // Actions on alerts.
   void ack(uint32_t now);
-  void mute(uint32_t now);
+  void toggle_mute() { muted_ = !muted_; }
   // NEXT / PREV: move the selection in table-number order, with wrap-around.
   void scroll(int delta);
   // Rebuild the list snapshot by urgency. Call on wake and after alerts.
@@ -101,7 +102,7 @@ class Board {
   Need need(const Table& t, uint32_t now) const;
   Priority priority(const Table& t, uint32_t now) const;
   bool any_high(uint32_t now) const;
-  bool muted(uint32_t now) const { return now < muted_until_; }
+  bool muted() const { return muted_; }  // quiet floor: alerts still fire
   // Fraction of the current threshold used, 0..1+ (0 when there is no threshold).
   float progress(const Table& t, uint32_t now) const;
   uint32_t elapsed_min(const Table& t, uint32_t now) const;
@@ -115,7 +116,7 @@ class Board {
   uint8_t order_[kMaxTables];
   size_t count_ = 0;
   size_t selected_ = 0;
-  uint32_t muted_until_ = 0;
+  bool muted_ = false;
   Config cfg_;
 };
 
