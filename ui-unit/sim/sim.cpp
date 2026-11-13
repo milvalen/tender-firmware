@@ -55,8 +55,7 @@ Stage next_of(Stage s) {
     case Stage::Free: return Stage::Seat;
     case Stage::Seat: return Stage::Ord;
     case Stage::Ord: return Stage::Main;
-    case Stage::Main: return Stage::Dsrt;
-    case Stage::Dsrt: return Stage::Bill;
+    case Stage::Main: return Stage::Bill;
     case Stage::Bill: return Stage::Free;
   }
   return Stage::Free;
@@ -101,6 +100,7 @@ struct WrongAction {
   uint32_t at;
   Action action;
   bool corrected = false;
+  bool extra = false;  // right table (guests are there), but no change was due
 };
 
 enum class Phase : uint8_t { Away, Seated, Ordered, Mains, Check, Done };
@@ -270,9 +270,11 @@ class Desk {
         }
       }
     }
+    const bool extra = !valid && p && p->phase != Phase::Done;
     if (valid) handle_alerts(table, now, false);
-    else wrong.push_back(WrongAction{table, now, a, false});
-    note(now, "KEY %s on %s%s", action_name(a), label(table).c_str(), valid ? "" : "  << WRONG TABLE");
+    else wrong.push_back(WrongAction{table, now, a, false, extra});
+    note(now, "KEY %s on %s%s", action_name(a), label(table).c_str(),
+         valid ? "" : extra ? "  << EXTRA PRESS" : "  << WRONG TABLE");
   }
 
   void question(uint32_t now) {
@@ -369,8 +371,7 @@ class Desk {
         if (p.dessert_after_s >= 0 && !s.dessert_done &&
             now >= s.mains_at + static_cast<uint32_t>(p.dessert_after_s) * kSec) {
           say(now, "Guests at " + t + " order dessert. You serve it.");
-          expect(now, p.table, Want::Stage, Stage::Dsrt, "dessert served");
-          s.dessert_done = true;
+          s.dessert_done = true;  // nothing to record: the table stays in MAIN
         }
         if (now >= s.mains_at + static_cast<uint32_t>(p.check_after_s) * kSec) {
           say(now, "Guests at " + t + " ask for the check.");
@@ -403,7 +404,7 @@ class Desk {
 struct Score {
   int events = 0, met = 0, missed = 0, multi_press = 0;
   int alerts = 0, alerts_handled = 0, alerts_missed = 0, false_alarms = 0;
-  int wrong = 0, corrected = 0, questions = 0, presses = 0, nav = 0;
+  int wrong = 0, corrected = 0, extra = 0, extra_corrected = 0, questions = 0, presses = 0, nav = 0;
   double mean_reaction_s = 0;
   bool pass = false;
 };
@@ -433,8 +434,13 @@ Score score(const Desk& d) {
     if (a.false_alarm) ++s.false_alarms;
   }
   for (const WrongAction& w : d.wrong) {
-    ++s.wrong;
-    if (w.corrected) ++s.corrected;
+    if (w.extra) {
+      ++s.extra;
+      if (w.corrected) ++s.extra_corrected;
+    } else {
+      ++s.wrong;
+      if (w.corrected) ++s.corrected;
+    }
   }
   s.questions = d.questions;
   s.presses = d.presses;
@@ -451,6 +457,8 @@ void print_report(FILE* f, const Score& s, KeyMode mode, const char* who) {
   fprintf(f, "  high alerts      %d: %d handled, %d missed, %d false (check already brought)\n", s.alerts,
           s.alerts_handled, s.alerts_missed, s.false_alarms);
   fprintf(f, "  wrong-table      %d (%d corrected with undo)\n", s.wrong, s.corrected);
+  fprintf(f, "  extra presses    %d on a table with guests, no change due (%d corrected with undo)\n", s.extra,
+          s.extra_corrected);
   fprintf(f, "  questions        %d\n", s.questions);
   fprintf(f, "  key presses      %d (%d to move between tables), mean reaction %.0f s (shift time)\n", s.presses,
           s.nav, s.mean_reaction_s);

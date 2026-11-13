@@ -30,7 +30,8 @@ bool App::blink_on(uint32_t now) const {
 }
 
 Action App::map(Key key, Press kind, uint32_t now) const {
-  const bool alert_here = board_.priority(board_.selected(), now) == Priority::High;
+  // Any hint on the selected table (a waiting guest or the dessert hint) can be acknowledged.
+  const bool alert_here = board_.priority(board_.selected(), now) != Priority::None;
   switch (key) {
     case Key::A: return kind == Press::Short ? Action::Step : Action::Undo;
     case Key::B:
@@ -74,11 +75,14 @@ void App::run(Action a, uint32_t now) {
       break;
     case Action::Next: board_.scroll(1); break;
     case Action::Prev: board_.scroll(-1); break;
-    case Action::Ack:
+    case Action::Ack: {
+      const bool dessert = board_.priority(board_.selected(), now) == Priority::Low;
       board_.ack(now);
       burst_until_ = now;
-      toast("OK, AGAIN IN 3 MIN", now);
+      if (dessert) toast_table("DESSERT OFFERED", now);
+      else toast("OK, AGAIN IN 3 MIN", now);
       break;
+    }
     case Action::Mute:
       board_.mute(now);
       burst_until_ = now;
@@ -173,17 +177,19 @@ void App::screen(uint32_t now, Screen& s) const {
   if (mode_ == KeyMode::FourKeys) {
     // Function names, the same words as engraved next to the keys
     // (design review rev 0.1, R2).
-    const char* labels[] = {"STEP", "NEXT", "ACK", "REQ"};
+    // The STEP key names what it records next (desk test D6).
+    const char* labels[] = {step_label(sel.stage), "NEXT", "ACK", "REQ"};
     for (int i = 0; i < 4; ++i) snprintf(s.keys[i], sizeof s.keys[i], "%s", labels[i]);
+    s.key_accent[2] = prio != Priority::None;
     s.key_count = 4;
   } else {
-    snprintf(s.keys[0], sizeof s.keys[0], "STEP");
+    snprintf(s.keys[0], sizeof s.keys[0], "%s", step_label(sel.stage));
     snprintf(s.keys[1], sizeof s.keys[1], "NEXT");
     const char* hold = sel.request_open           ? "HOLD NEXT: DONE"
-                       : prio == Priority::High ? "HOLD NEXT: ACK"
+                       : prio != Priority::None ? "HOLD NEXT: ACK"
                                                 : "HOLD NEXT: REQ";
     snprintf(s.keys[2], sizeof s.keys[2], "%s", hold);
-    s.key_accent[2] = prio == Priority::High;
+    s.key_accent[2] = prio != Priority::None;
     s.key_count = 3;
   }
 }

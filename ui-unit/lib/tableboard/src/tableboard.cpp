@@ -9,7 +9,6 @@ uint32_t Config::threshold(Stage s) const {
     case Stage::Seat: return seat_ms;
     case Stage::Ord: return ord_ms;
     case Stage::Main: return main_ms;
-    case Stage::Dsrt: return dsrt_ms;
     case Stage::Bill: return bill_ms;
     case Stage::Free: break;
   }
@@ -22,7 +21,6 @@ const char* stage_name(Stage s) {
     case Stage::Seat: return "SEAT";
     case Stage::Ord: return "ORD";
     case Stage::Main: return "MAIN";
-    case Stage::Dsrt: return "DSRT";
     case Stage::Bill: return "BILL";
   }
   return "?";
@@ -34,7 +32,6 @@ const char* stage_status(Stage s) {
     case Stage::Seat: return "GUESTS SEATED";
     case Stage::Ord: return "ORDER TAKEN";
     case Stage::Main: return "MAINS SERVED";
-    case Stage::Dsrt: return "DESSERT SERVED";
     case Stage::Bill: return "CHECK REQUESTED";
   }
   return "?";
@@ -59,16 +56,26 @@ void table_label(uint8_t number, char* buf, size_t len) {
   snprintf(buf, len, "TBL-%02u", static_cast<unsigned>(number));
 }
 
-static Stage next_stage(Stage s) {
+Stage next_stage(Stage s) {
   switch (s) {
     case Stage::Free: return Stage::Seat;
     case Stage::Seat: return Stage::Ord;
     case Stage::Ord: return Stage::Main;
-    case Stage::Main: return Stage::Dsrt;
-    case Stage::Dsrt: return Stage::Bill;
+    case Stage::Main: return Stage::Bill;
     case Stage::Bill: return Stage::Free;
   }
   return Stage::Free;
+}
+
+const char* step_label(Stage current) {
+  switch (next_stage(current)) {
+    case Stage::Seat: return "SEAT";
+    case Stage::Ord: return "ORDER";
+    case Stage::Main: return "SERVED";
+    case Stage::Bill: return "CHECK";
+    case Stage::Free: return "CLEAR";
+  }
+  return "STEP";
 }
 
 Board::Board(const uint8_t* numbers, size_t count, Config cfg) : cfg_(cfg) {
@@ -95,6 +102,7 @@ void Board::step(uint32_t now) {
   t.stage = next_stage(t.stage);
   t.stage_since = now;
   t.next_alert = 0;
+  t.hint_done = false;
   if (t.stage == Stage::Free) t.request_open = false;
   resort(now);
 }
@@ -120,6 +128,8 @@ void Board::request(uint32_t now) {
 }
 
 void Board::ack(uint32_t now) {
+  Table& sel = tables_[selected_];
+  if (priority(sel, now) == Priority::Low) sel.hint_done = true;
   for (size_t i = 0; i < count_; ++i) {
     Table& t = tables_[i];
     if (priority(t, now) == Priority::High) t.next_alert = now + cfg_.ack_snooze_ms;
@@ -131,6 +141,7 @@ void Board::mute(uint32_t now) { muted_until_ = now + cfg_.mute_ms; }
 Need Board::need(const Table& t, uint32_t now) const {
   if (t.request_open && now - t.request_since >= cfg_.request_ms) return Need::Request;
   uint32_t th = cfg_.threshold(t.stage);
+  if (t.stage == Stage::Main && t.hint_done) return Need::None;  // dessert offered
   if (th != kNoThreshold && now - t.stage_since >= th) return Need::Stage;
   return Need::None;
 }
@@ -138,7 +149,9 @@ Need Board::need(const Table& t, uint32_t now) const {
 Priority Board::priority(const Table& t, uint32_t now) const {
   switch (need(t, now)) {
     case Need::Request: return Priority::High;
-    case Need::Stage: return t.stage == Stage::Main ? Priority::Low : Priority::High;
+    case Need::Stage:
+      if (t.stage != Stage::Main) return Priority::High;
+      return t.hint_done ? Priority::None : Priority::Low;
     case Need::None: break;
   }
   return Priority::None;

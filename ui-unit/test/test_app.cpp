@@ -163,6 +163,29 @@ static void test_table_strip() {
   CHECK(s.strip[1].number == 3);  // places do not move
 }
 
+static void test_step_label_and_dessert_hint() {
+  Board b(kTables, 4);
+  App app(b, KeyMode::TwoKeys);
+  Screen s;
+  app.screen(1000, s);
+  CHECK(strcmp(s.keys[0], "SEAT") == 0);
+  app.press(Key::A, Press::Short, 1000);
+  app.press(Key::A, Press::Short, 1000);
+  app.screen(1000, s);
+  CHECK(strcmp(s.keys[0], "SERVED") == 0);
+  app.press(Key::A, Press::Short, 1000);  // mains served
+  app.screen(1000, s);
+  CHECK(strcmp(s.keys[0], "CHECK") == 0);  // no dessert stage in the way
+  const uint32_t hint = 1000 + 15 * M;
+  app.screen(hint, s);
+  CHECK(strcmp(s.keys[2], "HOLD NEXT: ACK") == 0);
+  CHECK(app.press(Key::B, Press::Long, hint) == Action::Ack);
+  app.screen(hint + 100, s);
+  CHECK(strstr(s.line2, "DESSERT OFFERED") != nullptr);
+  app.screen(hint + 5000, s);
+  CHECK(!s.strip[0].accent);  // hint gone
+}
+
 int main() {
   test_two_key_mapping();
   test_four_key_mapping();
@@ -172,6 +195,7 @@ int main() {
   test_dim_when_idle();
   test_low_battery();
   test_table_strip();
+  test_step_label_and_dessert_hint();
   printf("app: %d checks, %d failed\n", checks, failures);
   return failures == 0 ? 0 : 1;
 }

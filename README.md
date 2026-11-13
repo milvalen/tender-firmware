@@ -14,7 +14,8 @@ What it does:
 
 - the selected table and what to do now: `TBL-07` / `BRING CHECK`;
 - stage timers with approved thresholds: take order 3 min, offer dessert 15 min, bring check 3 min, guest request 2 min;
-- 2 alert levels: high alerts (guest waits) flash once and move the selection to the table, then return after 3 min if not handled; low alerts (dessert) are only marked;
+- 2 alert levels: high alerts (guest waits) flash once and move the selection to the table, then return after 3 min if not handled; low alerts (dessert) are only marked, and ACK removes them;
+- table stages `SEAT` → `ORD` → `MAIN` → `BILL` → `FREE`, with no dessert stage; the STEP key label names the next stage: `ORDER`, `SERVED`, `CHECK`, `CLEAR`;
 - a 1 s confirmation after every press; one-step undo;
 - a table strip shows all tables by number in fixed places, `1 2 3 [4] 5 6 7 8`; NEXT moves the box to the right, hold NEXT (4-key mode) to the left; tables that need an action are orange.
 
@@ -25,7 +26,7 @@ Keys:
 | 4 keys, Dual Button unit on Grove (`kHasDualButton = true`) | STEP, hold UNDO | NEXT, hold PREV | ACK, hold MUTE | REQUEST |
 | 2 keys, StickS3 alone | STEP, hold UNDO | NEXT, hold: close an open request, else ACK (alert shown), else open a request | — | — |
 
-The screen names keys by function (`STEP`, `NEXT`, `ACK`, `REQ`), the same words as engraved on enclosure rev 0.2. The StickS3 has no vibration motor: set `kVibroPin` when one is added.
+The screen names keys by function (`NEXT`, `ACK`, `REQ`), the same words as engraved on enclosure rev 0.2. The STEP key shows the stage it records next. The StickS3 has no vibration motor: set `kVibroPin` when one is added.
 
 Serial console (115200 baud) uses the simulator keys: `a` `s` `d` `f` = STEP, NEXT, ACK, REQ; uppercase = hold; `?` = state.
 

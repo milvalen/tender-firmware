@@ -7,7 +7,8 @@
 // tender-vault/10-concept/ux-principles.md:
 //   STEP     moves the selected table to the next stage, resets its timer
 //   UNDO     reverts the last STEP of the selected table
-//   ACK      stops the current alert; high alerts come back after 3 min
+//   ACK      stops the current alert; high alerts come back after 3 min;
+//            on the selected table it also clears the dessert hint
 //   MUTE     mutes all alerts for 10 min
 //   REQUEST  opens a guest request with a 2 min timer; a second press closes it
 //
@@ -26,7 +27,9 @@
 
 namespace tender {
 
-enum class Stage : uint8_t { Free, Seat, Ord, Main, Dsrt, Bill };
+// No dessert stage: the cycle has one STEP for each change the server makes
+// at every table (desk test D6). Dessert is only a low hint during MAIN.
+enum class Stage : uint8_t { Free, Seat, Ord, Main, Bill };
 enum class Need : uint8_t { None, Stage, Request };
 enum class Priority : uint8_t { None, Low, High };
 
@@ -38,7 +41,6 @@ struct Config {
   uint32_t seat_ms = 3 * kMinute;
   uint32_t ord_ms = kNoThreshold;
   uint32_t main_ms = 15 * kMinute;
-  uint32_t dsrt_ms = kNoThreshold;
   uint32_t bill_ms = 3 * kMinute;
   uint32_t request_ms = 2 * kMinute;
   // A high alert that is not handled comes back after this time.
@@ -57,6 +59,8 @@ struct Table {
   uint32_t request_since = 0;
   // Earliest time of the next high alert for this table (0 = any time).
   uint32_t next_alert = 0;
+  // The server offered dessert (ACK on the hint): no hint until the next STEP.
+  bool hint_done = false;
   // One level of undo for STEP.
   bool can_undo = false;
   Stage prev_stage = Stage::Free;
@@ -115,6 +119,10 @@ class Board {
   Config cfg_;
 };
 
+// The stage that STEP moves to.
+Stage next_stage(Stage s);
+// What the next STEP records, for the STEP key label: "ORDER", "CHECK".
+const char* step_label(Stage current);
 // Short stage code for logs: "SEAT", "MAIN".
 const char* stage_name(Stage s);
 // What just happened, for the confirmation after STEP: "ORDER TAKEN".

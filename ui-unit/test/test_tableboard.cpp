@@ -33,7 +33,7 @@ static bool select_table(Board& b, uint8_t number) {
 static void test_step_cycle() {
   Board b(kTables, 4);
   CHECK(select_table(b, 7));
-  const Stage expected[] = {Stage::Seat, Stage::Ord, Stage::Main, Stage::Dsrt, Stage::Bill, Stage::Free};
+  const Stage expected[] = {Stage::Seat, Stage::Ord, Stage::Main, Stage::Bill, Stage::Free};
   uint32_t now = 1000;
   for (Stage s : expected) {
     b.step(now);
@@ -58,8 +58,7 @@ static void test_thresholds_and_priorities() {
   CHECK(b.priority(b.selected(), 25 * M - 1) == Priority::None);
   CHECK(b.priority(b.selected(), 25 * M) == Priority::Low);
   CHECK(strcmp(action_text(b, b.selected(), 25 * M), "OFFER DESSERT") == 0);
-  b.step(30 * M);  // DSRT
-  b.step(40 * M);  // BILL: high after 3 min
+  b.step(40 * M);  // BILL: high after 3 min (no dessert stage)
   CHECK(b.priority(b.selected(), 43 * M) == Priority::High);
   CHECK(strcmp(action_text(b, b.selected(), 43 * M), "BRING CHECK") == 0);
   CHECK(b.elapsed_min(b.selected(), 52 * M + 30000) == 12);
@@ -212,6 +211,22 @@ static void test_wraparound_millis() {
   CHECK(b.poll_alert(start + 6 * M));
 }
 
+static void test_no_dessert_stage() {
+  Board b(kTables, 4);
+  CHECK(select_table(b, 3));
+  CHECK(strcmp(step_label(b.selected().stage), "SEAT") == 0);
+  b.step(0); b.step(0); b.step(0);  // seated, order, mains at 0
+  CHECK(b.selected().stage == Stage::Main);
+  CHECK(strcmp(step_label(Stage::Main), "CHECK") == 0);  // one press to the check
+  CHECK(b.priority(b.selected(), 15 * M) == Priority::Low);
+  CHECK(strcmp(action_text(b, b.selected(), 15 * M), "OFFER DESSERT") == 0);
+  b.ack(15 * M);  // dessert offered
+  CHECK(b.priority(b.selected(), 16 * M) == Priority::None);
+  b.step(17 * M);
+  CHECK(b.selected().stage == Stage::Bill);
+  CHECK(strcmp(step_label(Stage::Bill), "CLEAR") == 0);
+}
+
 int main() {
   test_step_cycle();
   test_thresholds_and_priorities();
@@ -225,6 +240,7 @@ int main() {
   test_high_outranks_low();
   test_scroll_wraps();
   test_numbers_sorted();
+  test_no_dessert_stage();
   test_labels();
   test_wraparound_millis();
   printf("%d checks, %d failed\n", checks, failures);
