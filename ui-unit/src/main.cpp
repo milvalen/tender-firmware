@@ -14,16 +14,20 @@
 //
 // A USB serial console uses the same keys as the simulator:
 //   a / s / d / f = A / B / red / blue, uppercase = long press, ? = state,
-//   ! = board self-test (lib/tableboard/src/selftest.h; type help there).
+//   ! = board self-test (lib/tableboard/src/selftest.h; type help there),
+//   L = print the shift log as CSV (lib/tableboard/src/shiftlog.h; read it
+//   with tools/shift_log.py).
 //
 // The StickS3 has no vibration motor. Set kVibroPin to drive one [?]: the
 // motor runs on PWM with a limited duty, because at full power it can draw
 // more than the 5 V output gives on battery.
+#include <LittleFS.h>
 #include <M5Unified.h>
 #include <esp_system.h>
 
 #include "app.h"
 #include "selftest.h"
+#include "shiftlog.h"
 #include "tableboard.h"
 
 using tender::Action;
@@ -56,6 +60,13 @@ constexpr uint8_t kVibroChannel = 2;    // LEDC; the backlight and power code us
 constexpr bool kBeepOnAlert = false;    // the floor stays silent by default
 
 constexpr uint32_t kHoldMs = 600;
+// Shift log in the "spiffs" flash partition (1.5 MB). Each record is 8 bytes;
+// when the file reaches kLogMaxBytes it becomes the old file and a new one
+// starts, so the last 2 files (up to 65,536 records) are kept.
+constexpr const char* kLogPath = "/shift.log";
+constexpr const char* kLogOldPath = "/shift.old";
+constexpr size_t kLogMaxBytes = 256 * 1024;
+constexpr uint32_t kBatteryLogMs = 10 * 60 * 1000;
 constexpr uint32_t kRedrawMs = 500;
 constexpr uint8_t kBright = 128;
 constexpr uint8_t kDim = 16;
@@ -98,6 +109,7 @@ GpioKey blue_key(kBluePin, kDualActiveHigh);
 uint32_t last_redraw = 0;
 bool dirty = true;
 SelfTest self_test(kRedPin, kBluePin, kDualActiveHigh);
+void log_dump(uint32_t now);  // shift log, below
 bool self_test_on = false;
 
 void draw(const Screen& s) {
@@ -196,6 +208,7 @@ bool handle_serial(uint32_t now) {
     const char* hit = strchr(keys, c | 0x20);
     if (c == '?') print_state(now);
     else if (c == '!') self_test_on = true;  // loop() starts it
+    else if (c == 'L') log_dump(now);
     else if (hit && *hit) any |= feed(static_cast<Key>(hit - keys), (c & 0x20) ? Press::Short : Press::Long, now);
   }
   return any;
@@ -218,19 +231,83 @@ bool handle_keys(uint32_t now) {
   return any;
 }
 
-const char* reset_reason() {
+namespace sl = tender::shiftlog;
+
+sl::Reset reset_code() {
   switch (esp_reset_reason()) {
-    case ESP_RST_POWERON: return "POWERON";
-    case ESP_RST_SW: return "SOFTWARE";
-    case ESP_RST_PANIC: return "PANIC";
+    case ESP_RST_POWERON: return sl::Reset::PowerOn;
+    case ESP_RST_SW: return sl::Reset::Software;
+    case ESP_RST_PANIC: return sl::Reset::Panic;
     case ESP_RST_INT_WDT:
     case ESP_RST_TASK_WDT:
-    case ESP_RST_WDT: return "WATCHDOG";
-    case ESP_RST_BROWNOUT: return "BROWNOUT";
-    case ESP_RST_DEEPSLEEP: return "DEEPSLEEP";
-    case ESP_RST_EXT: return "EXTERNAL";
-    default: return "OTHER";
+    case ESP_RST_WDT: return sl::Reset::Watchdog;
+    case ESP_RST_BROWNOUT: return sl::Reset::Brownout;
+    case ESP_RST_DEEPSLEEP: return sl::Reset::DeepSleep;
+    case ESP_RST_EXT: return sl::Reset::External;
+    default: return sl::Reset::Other;
   }
+}
+
+const char* reset_reason() { return sl::reset_name(reset_code()); }
+
+// --- Shift log ---------------------------------------------------------------
+
+bool log_ok = false;
+uint32_t last_battery_log = 0;
+
+void log_append(const sl::Record& r) {
+  if (!log_ok) return;
+  File f = LittleFS.open(kLogPath, FILE_APPEND);
+  if (f && f.size() >= kLogMaxBytes) {
+    f.close();
+    LittleFS.remove(kLogOldPath);
+    LittleFS.rename(kLogPath, kLogOldPath);
+    f = LittleFS.open(kLogPath, FILE_APPEND);
+  }
+  if (!f) return;
+  f.write(reinterpret_cast<const uint8_t*>(&r), sizeof r);
+  f.close();
+}
+
+void log_events(uint32_t now) {
+  tender::Event e;
+  while (app.pop_event(e)) log_append(sl::from_event(e));
+  if (now - last_battery_log >= kBatteryLogMs) {
+    log_append(sl::battery(now, M5.Power.getBatteryLevel()));
+    last_battery_log = now;
+  }
+}
+
+// Prints the log as CSV, oldest first. tools/shift_log.py reads this.
+void log_dump(uint32_t now) {
+  Serial.printf("# TND-01 shift log v%d now_ms=%lu\n", sl::kVersion, static_cast<unsigned long>(now));
+  Serial.println(sl::Writer::header());
+  sl::Writer writer;
+  unsigned long records = 0, skipped = 0;
+  char line[96];
+  const char* paths[] = {kLogOldPath, kLogPath};
+  for (const char* path : paths) {
+    if (!log_ok || !LittleFS.exists(path)) continue;
+    File f = LittleFS.open(path, FILE_READ);
+    sl::Record r;
+    while (f && f.read(reinterpret_cast<uint8_t*>(&r), sizeof r) == sizeof r) {
+      if (writer.line(r, line, sizeof line)) {
+        Serial.print(line);
+        ++records;
+      } else {
+        ++skipped;
+      }
+    }
+    if (f) f.close();
+  }
+  Serial.printf("# end records=%lu skipped=%lu boots=%d log=%s\n", records, skipped, writer.boots(),
+                log_ok ? "ok" : "unavailable");
+}
+
+void log_clear() {
+  if (!log_ok) return;
+  LittleFS.remove(kLogPath);
+  LittleFS.remove(kLogOldPath);
 }
 
 // --- Board self-test -----------------------------------------------------
@@ -326,6 +403,7 @@ void st_loop(uint32_t now) {
       st_line[st_line_len++] = c;
     }
   }
+  if (self_test.take_clear_log()) log_clear();
   if (self_test.exit_requested()) {
     ledcWrite(kVibroChannel, 0);
     Serial.flush();
@@ -382,8 +460,10 @@ void setup() {
   canvas.setColorDepth(16);
   canvas.createSprite(M5.Display.width(), M5.Display.height());
   if (kBeepOnAlert) M5.Speaker.setVolume(64);
-  Serial.printf("TND-01: a/s/d/f = A/B/red/blue, uppercase = hold, ? = state, ! = self-test; reset: %s\n",
-                reset_reason());
+  log_ok = LittleFS.begin(true);  // formats the partition on the first boot
+  log_append(sl::boot(millis(), reset_code()));
+  Serial.printf("TND-01: a/s/d/f = A/B/red/blue, uppercase = hold, ? = state, ! = self-test, L = shift log; reset: %s; log %s\n",
+                reset_reason(), log_ok ? "ok" : "unavailable");
 }
 
 void loop() {
@@ -405,6 +485,7 @@ void loop() {
     if (kBeepOnAlert && !app.board().muted()) M5.Speaker.tone(2000, 80);
   }
 
+  log_events(now);
   app.set_battery(M5.Power.getBatteryLevel());
   if (kVibroPin >= 0) {
     static bool vibro_on = false;

@@ -181,6 +181,10 @@ static void test_power_log() {
   CHECK(strcmp(reply, "t=61s bat=87% 4050mV usb=5010mV charging=yes I=-230mA vibro=G3 35% OFF\n") == 0);
   run(t, "log");
   CHECK(!t.log_due(100000));
+  CHECK(!t.take_clear_log());
+  run(t, "clearlog");
+  CHECK(t.take_clear_log());
+  CHECK(!t.take_clear_log());  // once
   run(t, "hello");
   CHECK(strstr(reply, "unknown command") != nullptr);
   run(t, "help");

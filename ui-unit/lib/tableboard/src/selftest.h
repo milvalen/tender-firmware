@@ -67,6 +67,12 @@ class SelfTest {
   Pull pull() const { return pull_; }
   uint8_t rotation() const { return rotation_; }
   bool exit_requested() const { return exit_; }
+  // True once after the command "clearlog": the glue deletes the shift log.
+  bool take_clear_log() {
+    const bool c = clear_log_;
+    clear_log_ = false;
+    return c;
+  }
   // Changes each time the pins or the pull must be set up again.
   uint32_t setup_version() const { return setup_version_; }
   // A power log line every kLogMs while "log" is on (for the battery time).
@@ -113,6 +119,7 @@ class SelfTest {
   Pull pull_;
   uint8_t rotation_ = 1;
   bool exit_ = false;
+  bool clear_log_ = false;
   bool repull_ = false;  // take the next pin levels as "not pressed"
   uint32_t setup_version_ = 0;
   bool log_ = false;

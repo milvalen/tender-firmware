@@ -103,6 +103,30 @@ void App::run(Action a, uint32_t now) {
       break;
     case Action::None: break;
   }
+  if (a != Action::None) push_event(Event::Type::Action, a, Need::None, now);
+}
+
+void App::push_event(Event::Type type, Action a, Need need, uint32_t now) {
+  Event& e = events_[(event_head_ + event_count_) % kEventQueue];
+  if (event_count_ == kEventQueue) event_head_ = (event_head_ + 1) % kEventQueue;  // drop the oldest
+  else ++event_count_;
+  const Table& t = board_.selected();
+  e.type = type;
+  e.ms = now;
+  e.action = a;
+  e.need = need;
+  e.table = t.number;
+  e.stage = t.stage;
+  e.request_open = t.request_open;
+  e.muted = board_.muted();
+}
+
+bool App::pop_event(Event& out) {
+  if (event_count_ == 0) return false;
+  out = events_[event_head_];
+  event_head_ = (event_head_ + 1) % kEventQueue;
+  --event_count_;
+  return true;
 }
 
 Action App::press(Key key, Press kind, uint32_t now) {
@@ -127,6 +151,7 @@ bool App::tick(uint32_t now) {
     alert_until_ = now + timing_.burst_ms;
     // MUTED: vibration only, the screen stays as it is (off when idle).
     if (!board_.muted()) last_input_ = now;  // wake the screen
+    push_event(Event::Type::Alert, Action::None, board_.need(board_.selected(), now), now);
   }
   if (idle(now) && now - last_idle_resort_ >= timing_.idle_resort_ms) {
     board_.resort(now);  // nobody is reading: safe to reorder
