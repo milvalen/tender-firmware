@@ -180,6 +180,7 @@ void SelfTest::command(const char* line, uint32_t now, char* out, size_t len) {
         "on | off        motor on or off\n"
         "power           battery and USB now\n"
         "log             power line every 10 s on or off\n"
+        "clearlog        delete the shift log in flash\n"
         "exit            restart into the table board\n",
         pull_ == Pull::Up ? "up" : "down", rotation_, kMaxDuty, duty_, duty_percent(duty_));
   } else if (strcmp(word, "keys") == 0) {
@@ -252,6 +253,9 @@ void SelfTest::command(const char* line, uint32_t now, char* out, size_t len) {
     log_ = !log_;
     next_log_ = now;
     add(out, len, "power log %s\n", log_ ? "on, every 10 s" : "off");
+  } else if (strcmp(word, "clearlog") == 0) {
+    clear_log_ = true;
+    add(out, len, "shift log cleared\n");
   } else if (strcmp(word, "exit") == 0) {
     vibro_ = Vibro::Off;
     exit_ = true;

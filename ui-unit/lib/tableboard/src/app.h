@@ -56,6 +56,19 @@ struct Screen {
   bool off;             // backlight off: MUTED and idle; a key press turns it on
 };
 
+// Something that happened on the device, for the shift log (shiftlog.h).
+struct Event {
+  enum class Type : uint8_t { Action, Alert };
+  Type type = Type::Action;
+  uint32_t ms = 0;
+  Action action = Action::None;  // Type::Action
+  Need need = Need::None;        // Type::Alert
+  uint8_t table = 0;             // the selected table after the action or alert
+  Stage stage = Stage::Free;     // its stage after the action
+  bool request_open = false;
+  bool muted = false;
+};
+
 class App {
  public:
   App(Board& board, KeyMode mode, Timing timing = Timing());
@@ -64,6 +77,10 @@ class App {
   Action press(Key key, Press kind, uint32_t now);
   // Run once per loop. Returns true when a new high alert starts.
   bool tick(uint32_t now);
+  // Takes the oldest event that is not taken yet. The queue keeps the last
+  // kEventQueue events; call once per loop.
+  bool pop_event(Event& out);
+  static constexpr size_t kEventQueue = 8;
   // Battery level 0..100, or -1 if unknown.
   void set_battery(int level) { battery_ = level; }
 
@@ -94,6 +111,10 @@ class App {
   uint32_t undo_until_ = 0;
   uint8_t undo_table_ = 0;
   int battery_ = -1;
+  void push_event(Event::Type type, Action a, Need need, uint32_t now);
+  Event events_[kEventQueue];
+  size_t event_head_ = 0;   // next to pop
+  size_t event_count_ = 0;
 };
 
 }  // namespace tender
