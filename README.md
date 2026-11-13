@@ -62,7 +62,7 @@ For the day the boards arrive (part E of the measurement sheet and the vibrator 
 | `clearlog` | delete the shift log |
 | `exit` | restart into the table board |
 
-The StickS3 power chip does not measure the battery current: the screen shows `I N/A`; use a multimeter. Write the results into the constants at the top of `src/main.cpp`.
+The StickS3 power chip does not measure the battery current: the screen shows `I N/A`; use a multimeter. Write the results into `src/config.h`.
 
 ## Build
 
@@ -97,7 +97,10 @@ Library versions are pinned to commits in `ui-unit/platformio.ini`. `ui-unit/scr
 | Path | Contents |
 |---|---|
 | `ui-unit/lib/tableboard/` | Hardware-independent core: table board (`tableboard.h`), interface logic (`app.h`: key mapping, alerts, screen content), the board self-test (`selftest.h`) and the shift log records (`shiftlog.h`) |
-| `ui-unit/src/main.cpp` | StickS3 glue: reads keys, draws the screen, serial console |
+| `ui-unit/src/main.cpp` | StickS3 glue: `setup()`, `loop()`, keys and serial console |
+| `ui-unit/src/config.h` | Pins, timings, colours, shift log size |
+| `ui-unit/src/display.cpp` | Screen drawing |
+| `ui-unit/src/flash_log.cpp`, `self_test_mode.cpp`, `vibro.cpp`, `gpio_key.h` | Shift log storage, self-test glue, motor PWM, Dual Button keys |
 | `ui-unit/sim/` | Desk-test simulator and shift script |
 | `ui-unit/test/` | Native tests of the core |
 | `voice-unit/` | Planned: Raspberry Pi Zero 2 W voice unit |
