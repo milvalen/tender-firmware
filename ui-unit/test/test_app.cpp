@@ -34,14 +34,18 @@ static void test_two_key_mapping() {
   CHECK(b.selected().request_open);
   Screen s;
   app.screen(now, s);
-  CHECK(strcmp(s.keys[2], "HOLD NEXT: DONE") == 0);
-  // The request is overdue after 2 min: hold B still closes it, so an
-  // overdue request cannot get stuck behind ACK.
+  CHECK(strcmp(s.keys[0], "DONE") == 0);  // the main key closes the request
+  CHECK(app.press(Key::B, Press::Long, now) == Action::None);  // no second request
+  // The request is overdue after 2 min: hold B acknowledges, STEP closes it.
   now += 2 * M;
   app.tick(now);
   CHECK(b.priority(b.selected(), now) == Priority::High);
-  CHECK(app.press(Key::B, Press::Long, now) == Action::Request);
+  app.screen(now, s);
+  CHECK(s.key_accent[0]);
+  const Stage stage = b.selected().stage;
+  CHECK(app.press(Key::A, Press::Short, now) == Action::Request);
   CHECK(!b.selected().request_open);
+  CHECK(b.selected().stage == stage);  // DONE does not change the stage
   // A stage alert without a request: hold B acknowledges it.
   app.press(Key::A, Press::Short, now);  // seat guests
   now += 3 * M;
@@ -196,20 +200,25 @@ static void test_alert_key_and_undo_hint() {
   const uint32_t due = 1000 + 2 * M;
   app.tick(due);
   app.screen(due, s);
-  CHECK(s.key_accent[3]);   // REQ ends a request alert
-  CHECK(!s.key_accent[0]);
+  CHECK(strcmp(s.keys[0], "DONE") == 0);
+  CHECK(s.key_accent[0]);   // the main key ends a request alert
   CHECK(!s.key_accent[2]);
-  // After a STEP the STEP key shows how to take it back, for 5 s.
+  CHECK(app.press(Key::Blue, Press::Short, due) == Action::None);  // REQ only opens
+  CHECK(app.press(Key::A, Press::Short, due) == Action::Request);  // DONE
+  CHECK(!app.tick(due + 1000));  // no new alert
+  // After a STEP the status line shows how to take it back, for 5 s; the
+  // key keeps naming the next stage.
   app.press(Key::A, Press::Short, due);
   app.screen(due + 1000, s);
-  CHECK(strcmp(s.keys[0], "HOLD: UNDO") == 0);
-  app.screen(due + 5000, s);
+  CHECK(strstr(s.status, "HOLD STEP = UNDO") != nullptr);
   CHECK(strcmp(s.keys[0], "ORDER") == 0);
+  app.screen(due + 5000, s);
+  CHECK(s.status[0] == '\0');
   // Not on another table.
   app.press(Key::A, Press::Short, due + 6000);
   app.press(Key::B, Press::Short, due + 6000);
   app.screen(due + 6500, s);
-  CHECK(strcmp(s.keys[0], "SEAT") == 0);
+  CHECK(strstr(s.status, "UNDO") == nullptr);  // hint only on its table
   // Undo ends the hint.
   app.press(Key::B, Press::Long, due + 7000);  // back to TBL-01
   app.press(Key::A, Press::Long, due + 7000);  // ORD back to SEAT

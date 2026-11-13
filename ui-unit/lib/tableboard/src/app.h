@@ -38,7 +38,7 @@ struct Screen {
     bool accent;  // the table needs an action (low or high)
     bool high;    // the guest waits
   };
-  char status[28];      // top right: "MUTED", "LOW BATTERY", or empty
+  char status[40];      // top right: "MUTED", "LOW BATTERY", "HOLD STEP = UNDO", or empty
   char table[8];        // "TBL-07"
   bool table_accent;    // high alert on the selected table
   char line2[28];       // action, toast or last status

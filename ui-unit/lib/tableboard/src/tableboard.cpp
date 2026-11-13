@@ -101,7 +101,9 @@ void Board::step(uint32_t now) {
   t.can_undo = true;
   t.stage = next_stage(t.stage);
   t.stage_since = now;
-  t.next_alert = 0;
+  // A new stage may alert at once, but an open request keeps its snooze:
+  // else STEP on an overdue request starts the same alert again (desk test D14).
+  if (!t.request_open) t.next_alert = 0;
   t.hint_done = false;
   if (t.stage == Stage::Free) t.request_open = false;
   resort(now);

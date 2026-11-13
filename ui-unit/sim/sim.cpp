@@ -378,7 +378,7 @@ class Desk {
         }
         if (p.dessert_after_s >= 0 && !s.dessert_done &&
             now >= s.mains_at + static_cast<uint32_t>(p.dessert_after_s) * kSec) {
-          say(now, "Guests at " + t + " order dessert. You serve it.");
+          say(now, "Guests at " + t + " order dessert.");
           s.dessert_done = true;  // nothing to record: the table stays in MAIN
         }
         if (now >= s.mains_at + static_cast<uint32_t>(p.check_after_s) * kSec) {
@@ -537,7 +537,7 @@ class Bot {
       if (sel.stage == Stage::Seat && p && p->phase == Phase::Seated && p->p->order_after_s < 0)
         set(Key::A, Press::Short, key, kind);
       else if (sel.request_open)
-        request_key(key, kind);
+        set(Key::A, Press::Short, key, kind);  // DONE closes the request
       else
         ack_key(key, kind);
       return true;
@@ -546,6 +546,8 @@ class Bot {
     if (e.want == Want::Stage) {
       if (next_of(e.stage) == sel.stage && sel.can_undo) set(Key::A, Press::Long, key, kind);
       else set(Key::A, Press::Short, key, kind);
+    } else if (e.want == Want::RequestClosed) {
+      set(Key::A, Press::Short, key, kind);  // DONE
     } else {
       request_key(key, kind);
     }

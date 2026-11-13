@@ -32,20 +32,24 @@ bool App::blink_on(uint32_t now) const {
 Action App::map(Key key, Press kind, uint32_t now) const {
   // Any hint on the selected table (a waiting guest or the dessert hint) can be acknowledged.
   const bool alert_here = board_.priority(board_.selected(), now) != Priority::None;
+  const bool open = board_.selected().request_open;
   switch (key) {
-    case Key::A: return kind == Press::Short ? Action::Step : Action::Undo;
+    case Key::A:
+      if (kind == Press::Long) return Action::Undo;
+      // The main key means "done": with an open request it closes the
+      // request and leaves the stage as it is (desk test D15).
+      return open ? Action::Request : Action::Step;
     case Key::B:
       if (kind == Press::Short) return Action::Next;
       if (mode_ == KeyMode::FourKeys) return Action::Prev;
-      // An open request is closed first: otherwise an overdue request could
-      // only be acknowledged and would alert again and again.
-      if (board_.selected().request_open) return Action::Request;
-      return alert_here ? Action::Ack : Action::Request;
+      if (alert_here) return Action::Ack;
+      return open ? Action::None : Action::Request;
     case Key::Red:
       if (mode_ != KeyMode::FourKeys) return Action::None;
       return kind == Press::Short ? Action::Ack : Action::Mute;
     case Key::Blue:
-      if (mode_ != KeyMode::FourKeys) return Action::None;
+      // REQ only opens a request; STEP closes it.
+      if (mode_ != KeyMode::FourKeys || open) return Action::None;
       return Action::Request;
   }
   return Action::None;
@@ -177,10 +181,15 @@ void App::screen(uint32_t now, Screen& s) const {
     c.high = p == Priority::High;
   }
 
-  // The STEP key names what it records next (desk test D6). For 5 s after a
-  // STEP it shows how to take the STEP back (D10).
+  // The STEP key names what it does next: DONE for an open request (D15),
+  // else the next stage (D6). For 5 s after a STEP the status line shows how
+  // to take it back (D10, D16).
   const bool undo_hint = reached(now, undo_until_) && sel.number == undo_table_ && sel.can_undo;
-  const char* step = undo_hint ? "HOLD: UNDO" : step_label(sel.stage);
+  if (undo_hint) {
+    size_t n = strlen(s.status);
+    snprintf(s.status + n, sizeof s.status - n, "%sHOLD STEP = UNDO", n ? "  " : "");
+  }
+  const char* step = sel.request_open ? "DONE" : step_label(sel.stage);
   // The label of the key that ends the alert is orange (desk test D9):
   // REQ for a guest request, STEP for a stage alert, ACK for the dessert hint.
   const Need need = board_.need(sel, now);
@@ -192,19 +201,18 @@ void App::screen(uint32_t now, Screen& s) const {
     // (design review rev 0.1, R2).
     const char* labels[] = {step, "NEXT", "ACK", "REQ"};
     for (int i = 0; i < 4; ++i) snprintf(s.keys[i], sizeof s.keys[i], "%s", labels[i]);
-    s.key_accent[0] = step_due && !undo_hint;
+    s.key_accent[0] = step_due || req_due;
     s.key_accent[2] = ack_due;
-    s.key_accent[3] = req_due;
     s.key_count = 4;
   } else {
     snprintf(s.keys[0], sizeof s.keys[0], "%s", step);
     snprintf(s.keys[1], sizeof s.keys[1], "NEXT");
-    const char* hold = sel.request_open           ? "HOLD NEXT: DONE"
-                       : prio != Priority::None ? "HOLD NEXT: ACK"
-                                                : "HOLD NEXT: REQ";
+    const char* hold = prio != Priority::None ? "HOLD NEXT: ACK"
+                       : sel.request_open     ? ""
+                                              : "HOLD NEXT: REQ";
     snprintf(s.keys[2], sizeof s.keys[2], "%s", hold);
-    s.key_accent[0] = step_due && !undo_hint;
-    s.key_accent[2] = req_due || ack_due;
+    s.key_accent[0] = step_due || req_due;
+    s.key_accent[2] = ack_due;
     s.key_count = 3;
   }
 }

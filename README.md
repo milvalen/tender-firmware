@@ -16,16 +16,17 @@ What it does:
 - stage timers with approved thresholds: take order 3 min, offer dessert 15 min, bring check 3 min, guest request 2 min;
 - 2 alert levels: high alerts (guest waits) flash once and move the selection to the table, then return after 3 min if not handled; low alerts (dessert) are only marked, and ACK removes them;
 - table stages `SEAT` → `ORD` → `MAIN` → `BILL` → `FREE`, with no dessert stage; the STEP key label names the next stage: `ORDER`, `SERVED`, `CHECK`, `CLEAR`;
-- a 1 s confirmation after every press; one-step undo, and for 5 s after each STEP the key shows `HOLD: UNDO`;
-- during an alert the label of the key that ends it is orange: `REQ` for a guest request, the STEP key for a stage alert, `ACK` for the dessert hint;
+- a 1 s confirmation after every press; one-step undo, and for 5 s after each STEP the status line shows `HOLD STEP = UNDO`;
+- STEP means "done": with an open guest request it reads `DONE` and closes the request; REQ only opens a request;
+- during an alert the label of the key that ends it is orange: the STEP key (`DONE`) for a guest request or a stage alert, `ACK` for the dessert hint;
 - a table strip shows all tables by number in fixed places, `1 2 3 [4] 5 6 7 8`; NEXT moves the box to the right, hold NEXT (4-key mode) to the left; tables that need an action are orange.
 
 Keys:
 
 | Mode | STEP (key A, front) | NEXT (key B, top) | ACK (red key) | REQ (blue key) |
 |---|---|---|---|---|
-| 4 keys, Dual Button unit on Grove (`kHasDualButton = true`) | STEP, hold UNDO | NEXT, hold PREV | ACK, hold MUTE | REQUEST |
-| 2 keys, StickS3 alone | STEP, hold UNDO | NEXT, hold: close an open request, else ACK (alert shown), else open a request | — | — |
+| 4 keys, Dual Button unit on Grove (`kHasDualButton = true`) | STEP or DONE, hold UNDO | NEXT, hold PREV | ACK, hold MUTE | open a request |
+| 2 keys, StickS3 alone | STEP or DONE, hold UNDO | NEXT, hold: ACK (alert shown), else open a request | — | — |
 
 The screen names keys by function (`NEXT`, `ACK`, `REQ`), the same words as engraved on enclosure rev 0.2. The STEP key shows the stage it records next. The StickS3 has no vibration motor: set `kVibroPin` when one is added.
 

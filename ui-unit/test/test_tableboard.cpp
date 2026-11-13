@@ -227,6 +227,16 @@ static void test_no_dessert_stage() {
   CHECK(strcmp(step_label(Stage::Bill), "CLEAR") == 0);
 }
 
+static void test_step_keeps_request_snooze() {
+  Board b(kTables, 4);
+  CHECK(select_table(b, 3));
+  b.step(0);           // seated
+  b.request(0);        // guest asks
+  CHECK(b.poll_alert(2 * M));     // request overdue
+  b.step(2 * M + 1000);           // STEP on the table
+  CHECK(!b.poll_alert(2 * M + 2000));  // same alert does not start again (D14)
+}
+
 int main() {
   test_step_cycle();
   test_thresholds_and_priorities();
@@ -241,6 +251,7 @@ int main() {
   test_scroll_wraps();
   test_numbers_sorted();
   test_no_dessert_stage();
+  test_step_keeps_request_snooze();
   test_labels();
   test_wraparound_millis();
   printf("%d checks, %d failed\n", checks, failures);
