@@ -106,7 +106,7 @@ int autoplay(const Options& o) {
 void handle_key(char c, Session& session, GameState& game) {
   if (c == 'q' || c == 'Q') {
     request_quit();
-  } else if (c == ' ') {
+  } else if (c == ' ' || c == '\r' || c == '\n') {  // Enter too: some terminal panes keep the space key
     game.paused = !game.paused;
     game.started = true;
   } else if (c == '+' || c == '=') {
