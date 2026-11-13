@@ -234,6 +234,22 @@ static void test_table_strip() {
   CHECK(s.strip[1].number == 3);  // places do not move
 }
 
+static void test_mains_hint_toast() {
+  Board b(kTables, 4);
+  App app(b, KeyMode::FourKeys);
+  app.press(Key::A, Press::Short, 1000);  // seated
+  app.press(Key::A, Press::Short, 2000);  // order taken
+  CHECK(!app.tick(2000 + 10 * M));        // a low hint is no alert
+  Screen s;
+  app.screen(2000 + 10 * M, s);
+  CHECK(strcmp(s.line2, "CHECK MAINS") == 0);
+  CHECK(s.key_accent[2]);  // ACK ends it
+  CHECK(!s.burst_on);
+  CHECK(app.press(Key::Red, Press::Short, 2000 + 10 * M) == Action::Ack);
+  app.screen(2000 + 10 * M + 100, s);
+  CHECK(strstr(s.line2, "MAINS CHECKED") != nullptr);
+}
+
 static void test_step_label_and_dessert_hint() {
   Board b(kTables, 4);
   App app(b, KeyMode::TwoKeys);
@@ -305,6 +321,7 @@ int main() {
   test_low_battery();
   test_table_strip();
   test_step_label_and_dessert_hint();
+  test_mains_hint_toast();
   test_alert_key_and_undo_hint();
   printf("app: %d checks, %d failed\n", checks, failures);
   return failures == 0 ? 0 : 1;
