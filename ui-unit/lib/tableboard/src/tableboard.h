@@ -31,7 +31,9 @@ namespace tender {
 
 // No dessert stage: the cycle has one STEP for each change the server makes
 // at every table (desk test D6). Dessert is only a low hint during MAIN.
-enum class Stage : uint8_t { Free, Seat, Ord, Main, Bill };
+// PAY: the check is on the table and the guests pay. It has no timer, so a
+// slow payment gives no false BRING CHECK alert (desk test D2).
+enum class Stage : uint8_t { Free, Seat, Ord, Main, Bill, Pay };
 enum class Need : uint8_t { None, Stage, Request };
 enum class Priority : uint8_t { None, Low, High };
 
@@ -44,6 +46,7 @@ struct Config {
   uint32_t ord_ms = kNoThreshold;
   uint32_t main_ms = 15 * kMinute;
   uint32_t bill_ms = 3 * kMinute;
+  uint32_t pay_ms = kNoThreshold;  // check brought: no alert while the guests pay
   uint32_t request_ms = 2 * kMinute;
   // A high alert that is not handled comes back after this time.
   uint32_t realert_ms = 3 * kMinute;

@@ -33,7 +33,7 @@ static bool select_table(Board& b, uint8_t number) {
 static void test_step_cycle() {
   Board b(kTables, 4);
   CHECK(select_table(b, 7));
-  const Stage expected[] = {Stage::Seat, Stage::Ord, Stage::Main, Stage::Bill, Stage::Free};
+  const Stage expected[] = {Stage::Seat, Stage::Ord, Stage::Main, Stage::Bill, Stage::Pay, Stage::Free};
   uint32_t now = 1000;
   for (Stage s : expected) {
     b.step(now);
@@ -229,7 +229,33 @@ static void test_no_dessert_stage() {
   CHECK(b.priority(b.selected(), 16 * M) == Priority::None);
   b.step(17 * M);
   CHECK(b.selected().stage == Stage::Bill);
-  CHECK(strcmp(step_label(Stage::Bill), "CLEAR") == 0);
+  CHECK(strcmp(step_label(Stage::Bill), "BROUGHT") == 0);
+  CHECK(strcmp(step_label(Stage::Pay), "CLEAR") == 0);
+}
+
+// Desk test D2: no BRING CHECK alert while the guests pay.
+static void test_check_brought_stops_the_check_alert() {
+  Board b(kTables, 4);
+  CHECK(select_table(b, 3));
+  for (int i = 0; i < 4; ++i) b.step(0);  // seat, order, mains, check requested at 0
+  CHECK(b.selected().stage == Stage::Bill);
+  CHECK(!b.poll_alert(3 * M - 1));
+  CHECK(b.poll_alert(3 * M));  // the check is late
+  CHECK(strcmp(action_text(b, b.selected(), 3 * M), "BRING CHECK") == 0);
+  b.step(3 * M + 10);  // check brought
+  CHECK(b.selected().stage == Stage::Pay);
+  CHECK(strcmp(stage_status(Stage::Pay), "CHECK BROUGHT") == 0);
+  CHECK(strcmp(stage_name(Stage::Pay), "PAY") == 0);
+  CHECK(b.priority(b.selected(), 3 * M + 10) == Priority::None);
+  CHECK(!b.any_high(60 * M));  // a slow payment never alerts
+  CHECK(!b.poll_alert(60 * M));
+  CHECK(action_text(b, b.selected(), 60 * M) == nullptr);
+  // UNDO goes back to BILL, where the check alert is due again.
+  CHECK(b.undo(60 * M));
+  CHECK(b.selected().stage == Stage::Bill);
+  b.step(60 * M + 1);  // brought
+  b.step(61 * M);      // paid and left
+  CHECK(b.selected().stage == Stage::Free);
 }
 
 static void test_step_keeps_request_snooze() {
@@ -251,6 +277,7 @@ int main() {
   test_low_priority_never_alerts();
   test_alert_selects_table();
   test_ack_and_mute();
+  test_check_brought_stops_the_check_alert();
   test_stable_order();
   test_high_outranks_low();
   test_scroll_wraps();
