@@ -13,14 +13,17 @@
 //     while an alert is shown, else opens a request
 //
 // A USB serial console uses the same keys as the simulator:
-//   a / s / d / f = A / B / red / blue, uppercase = long press, ? = state.
+//   a / s / d / f = A / B / red / blue, uppercase = long press, ? = state,
+//   ! = board self-test (lib/tableboard/src/selftest.h; type help there).
 //
 // The StickS3 has no vibration motor. Set kVibroPin to drive one [?]: the
 // motor runs on PWM with a limited duty, because at full power it can draw
 // more than the 5 V output gives on battery.
 #include <M5Unified.h>
+#include <esp_system.h>
 
 #include "app.h"
+#include "selftest.h"
 #include "tableboard.h"
 
 using tender::Action;
@@ -30,6 +33,7 @@ using tender::Key;
 using tender::KeyMode;
 using tender::Press;
 using tender::Screen;
+using tender::SelfTest;
 
 namespace {
 
@@ -93,6 +97,8 @@ GpioKey red_key(kRedPin, kDualActiveHigh);
 GpioKey blue_key(kBluePin, kDualActiveHigh);
 uint32_t last_redraw = 0;
 bool dirty = true;
+SelfTest self_test(kRedPin, kBluePin, kDualActiveHigh);
+bool self_test_on = false;
 
 void draw(const Screen& s) {
   const int w = canvas.width(), h = canvas.height();
@@ -189,6 +195,7 @@ bool handle_serial(uint32_t now) {
     const char* keys = "asdf";
     const char* hit = strchr(keys, c | 0x20);
     if (c == '?') print_state(now);
+    else if (c == '!') self_test_on = true;  // loop() starts it
     else if (hit && *hit) any |= feed(static_cast<Key>(hit - keys), (c & 0x20) ? Press::Short : Press::Long, now);
   }
   return any;
@@ -209,6 +216,144 @@ bool handle_keys(uint32_t now) {
     else if (blue_key.clicked()) any |= feed(Key::Blue, Press::Short, now);
   }
   return any;
+}
+
+const char* reset_reason() {
+  switch (esp_reset_reason()) {
+    case ESP_RST_POWERON: return "POWERON";
+    case ESP_RST_SW: return "SOFTWARE";
+    case ESP_RST_PANIC: return "PANIC";
+    case ESP_RST_INT_WDT:
+    case ESP_RST_TASK_WDT:
+    case ESP_RST_WDT: return "WATCHDOG";
+    case ESP_RST_BROWNOUT: return "BROWNOUT";
+    case ESP_RST_DEEPSLEEP: return "DEEPSLEEP";
+    case ESP_RST_EXT: return "EXTERNAL";
+    default: return "OTHER";
+  }
+}
+
+// --- Board self-test -----------------------------------------------------
+// The core (selftest.h) decides; this code only applies pins and draws.
+
+int st_vibro_pin = -1;  // pin attached to the PWM channel now
+uint32_t st_setup_version = 0;
+uint8_t st_duty = 0;
+uint32_t st_last_power = 0;
+char st_line[48];
+size_t st_line_len = 0;
+
+void st_print(const char* text) {
+  if (text[0]) Serial.print(text);
+}
+
+void st_apply_setup() {
+  const uint8_t mode = self_test.pull() == tender::Pull::Up ? INPUT_PULLUP : INPUT_PULLDOWN;
+  pinMode(kRedPin, mode);
+  pinMode(kBluePin, mode);
+  if (self_test.vibro_pin() != st_vibro_pin) {
+    if (st_vibro_pin >= 0) {
+      ledcWrite(kVibroChannel, 0);
+      ledcDetachPin(st_vibro_pin);
+      pinMode(st_vibro_pin, INPUT);
+    }
+    st_vibro_pin = self_test.vibro_pin();
+    if (st_vibro_pin >= 0) {
+      ledcSetup(kVibroChannel, kVibroFreqHz, kVibroBits);
+      ledcAttachPin(st_vibro_pin, kVibroChannel);
+      ledcWrite(kVibroChannel, 0);
+    }
+    st_duty = 0;
+  }
+  M5.Display.setRotation(self_test.rotation());
+  st_setup_version = self_test.setup_version();
+}
+
+void st_start(uint32_t now) {
+  // Stop the table board outputs; the self-test owns the motor channel.
+  if (kVibroPin >= 0) {
+    ledcWrite(kVibroChannel, 0);
+    ledcDetachPin(kVibroPin);
+    pinMode(kVibroPin, INPUT);
+  }
+  M5.Power.setExtOutput(true);  // 5 V for the Dual Button unit and the motor
+  M5.Display.setBrightness(kBright);
+  st_apply_setup();
+  delay(5);  // let the pulls settle before the "not pressed" levels are read
+  self_test.begin(now, digitalRead(kRedPin) == HIGH, digitalRead(kBluePin) == HIGH, reset_reason());
+  char out[96];
+  if (kVibroPin >= 0) {
+    snprintf(st_line, sizeof st_line, "vibro %d", kVibroPin);
+    self_test.command(st_line, now, out, sizeof out);
+  }
+  Serial.println("TND-01 self-test. Type help and press Enter.");
+}
+
+void st_power() {
+  tender::PowerInfo p;
+  p.level = M5.Power.getBatteryLevel();
+  p.battery_mv = M5.Power.getBatteryVoltage();
+  p.vbus_mv = M5.Power.getVBUSVoltage();
+  p.charging = M5.Power.isCharging();
+  p.current_ma = M5.Power.getBatteryCurrent();
+  self_test.set_power(p);
+}
+
+void st_draw(uint32_t now) {
+  SelfTest::Lines l;
+  self_test.lines(now, l);
+  canvas.fillScreen(kInk);
+  canvas.setTextFont(1);
+  canvas.setTextSize(2);
+  canvas.setTextDatum(top_left);
+  for (size_t i = 0; i < SelfTest::kLines; ++i) {
+    canvas.setTextColor(l.accent[i] ? kAccent : (i == 0 ? kPaper : kGrey), kInk);
+    canvas.drawString(l.row[i], 0, static_cast<int>(i) * 16 + 4);
+  }
+  canvas.pushSprite(0, 0);
+}
+
+void st_loop(uint32_t now) {
+  static char out[1024];
+  while (Serial.available()) {
+    const char c = static_cast<char>(Serial.read());
+    if (c == '\r' || c == '\n') {
+      st_line[st_line_len] = '\0';
+      st_line_len = 0;
+      self_test.command(st_line, now, out, sizeof out);
+      st_print(out);
+    } else if (st_line_len + 1 < sizeof st_line) {
+      st_line[st_line_len++] = c;
+    }
+  }
+  if (self_test.exit_requested()) {
+    ledcWrite(kVibroChannel, 0);
+    Serial.flush();
+    ESP.restart();
+  }
+  if (self_test.setup_version() != st_setup_version) st_apply_setup();
+
+  self_test.keys(M5.BtnA.isPressed(), M5.BtnB.isPressed());
+  self_test.dual_levels(digitalRead(kRedPin) == HIGH, digitalRead(kBluePin) == HIGH);
+  if (self_test.take_event(out, sizeof out)) st_print(out);
+
+  if (now - st_last_power >= 500) {
+    st_power();
+    st_last_power = now;
+  }
+  if (self_test.log_due(now)) {
+    self_test.power_line(now, out, sizeof out);
+    st_print(out);
+  }
+
+  const uint8_t duty = self_test.vibro_duty(now);
+  if (st_vibro_pin >= 0 && duty != st_duty) ledcWrite(kVibroChannel, duty);
+  st_duty = duty;
+
+  if (now - last_redraw >= 100) {
+    st_draw(now);
+    last_redraw = now;
+  }
 }
 
 }  // namespace
@@ -237,12 +382,22 @@ void setup() {
   canvas.setColorDepth(16);
   canvas.createSprite(M5.Display.width(), M5.Display.height());
   if (kBeepOnAlert) M5.Speaker.setVolume(64);
-  Serial.println("TND-01: a/s/d/f = A/B/red/blue, uppercase = hold, ? = state");
+  Serial.printf("TND-01: a/s/d/f = A/B/red/blue, uppercase = hold, ? = state, ! = self-test; reset: %s\n",
+                reset_reason());
 }
 
 void loop() {
   M5.update();
   const uint32_t now = millis();
+
+  static bool self_test_started = false;
+  if (self_test_on) {
+    if (!self_test_started) st_start(now);
+    self_test_started = true;
+    st_loop(now);
+    delay(5);
+    return;
+  }
 
   if (handle_keys(now) | handle_serial(now)) dirty = true;
   if (app.tick(now)) {

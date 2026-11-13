@@ -31,7 +31,24 @@ Keys:
 
 The screen names keys by function (`NEXT`, `ACK`, `TALK`), the same words as engraved on enclosure rev 0.4. In stage 0, without the voice unit, `TALK` opens a guest request. The STEP key shows the stage it records next. The StickS3 has no vibration motor: set `kVibroPin` when one is added.
 
-Serial console (115200 baud) uses the simulator keys: `a` `s` `d` `f` = STEP, NEXT, ACK, TALK; uppercase = hold; `?` = state.
+Serial console (115200 baud) uses the simulator keys: `a` `s` `d` `f` = STEP, NEXT, ACK, TALK; uppercase = hold; `?` = state; `!` = board self-test.
+
+### Board self-test
+
+For the day the boards arrive (part E of the measurement sheet and the vibrator desk test in the vault). In `pio device monitor`, type `!`. The table board stops; the screen shows the key counts, the level of each Dual Button pin and what a press reads, the motor state, the battery and the USB voltage, and the reset reason (`BROWNOUT` after a restart when the motor starts). Commands, one per line:
+
+| Command | Does |
+|---|---|
+| `keys` | key counts; after a press of each Dual Button key, the value for `kDualActiveHigh` |
+| `pull up` / `pull down` | input pull on the Dual Button pins |
+| `rot 1` / `rot 3` | display rotation; the bottom line `< HAT2 END` must be at the Hat2 end |
+| `vibro <pin>` / `vibro off` | motor GPIO: 1-3, 5-8 (Hat2) or 9, 10 (Grove). Not 4 (Boot) or 43, 44 (UART0) |
+| `duty <0-128>` | motor PWM duty of 255; capped at 50 % |
+| `pulse`, `on`, `off` | one alert pattern (2 s), motor on, motor off |
+| `power`, `log` | battery line now; a battery line every 10 s on or off |
+| `exit` | restart into the table board |
+
+The StickS3 power chip does not measure the battery current: the screen shows `I N/A`; use a multimeter. Write the results into the constants at the top of `src/main.cpp`.
 
 ## Build
 
@@ -65,7 +82,7 @@ Library versions are pinned to commits in `ui-unit/platformio.ini`.
 
 | Path | Contents |
 |---|---|
-| `ui-unit/lib/tableboard/` | Hardware-independent core: table board (`tableboard.h`) and interface logic (`app.h`: key mapping, alerts, screen content) |
+| `ui-unit/lib/tableboard/` | Hardware-independent core: table board (`tableboard.h`), interface logic (`app.h`: key mapping, alerts, screen content) and the board self-test (`selftest.h`) |
 | `ui-unit/src/main.cpp` | StickS3 glue: reads keys, draws the screen, serial console |
 | `ui-unit/sim/` | Desk-test simulator and shift script |
 | `ui-unit/test/` | Native tests of the core |
