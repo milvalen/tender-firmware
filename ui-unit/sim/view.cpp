@@ -158,9 +158,13 @@ std::string keys_row(const Screen& s, const Styles& st) {
 
 // --- Whole frame -------------------------------------------------------------
 
-std::vector<std::string> device_column(const Screen& s, KeyMode mode) {
+std::vector<std::string> device_column(const Screen& s, const GameState& game) {
   std::vector<std::string> out;
   for (const std::string& row : device_rows(s)) out.push_back(" " + row);
+  // The terminal cannot vibrate: show the motor under the screen. The row is
+  // always there, so the layout does not jump.
+  out.push_back(game.vibrate ? std::string("  ") + kBold + fg(kOrange) + "BZZ  BZZ  BZZ" + kReset : "");
+  const KeyMode mode = game.mode;
   out.push_back(mode == KeyMode::FourKeys ? "  a STEP   s NEXT   d ACK   f TALK" : "  a STEP   s NEXT");
   out.push_back("  Shift + key = hold   ? = not sure");
   out.push_back("  space pause   + - speed   q end");
@@ -252,7 +256,7 @@ void draw_game(const Screen& screen, const std::vector<FloorLine>& floor, const 
   int cols, rows;
   terminal_size(cols, rows);
 
-  const std::vector<std::string> device = device_column(screen, game.mode);
+  const std::vector<std::string> device = device_column(screen, game);
 
   // The floor log goes beside the device when the terminal is wide, else below it.
   const bool side = cols >= kDeviceWidth + 2 + kMinFloorWidth;
