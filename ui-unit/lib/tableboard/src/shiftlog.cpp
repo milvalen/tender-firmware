@@ -40,6 +40,7 @@ const char* alert_text(Stage stage, Need need) {
   if (need == Need::Request) return "GUEST REQUEST";
   switch (stage) {
     case Stage::Seat: return "TAKE ORDER";
+    case Stage::Ord: return "CHECK MAINS";
     case Stage::Main: return "OFFER DESSERT";
     case Stage::Bill: return "BRING CHECK";
     default: return "CHECK TABLE";

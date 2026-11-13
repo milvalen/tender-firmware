@@ -51,9 +51,9 @@ static void test_thresholds_and_priorities() {
   CHECK(b.priority(b.selected(), 3 * M - 1) == Priority::None);
   CHECK(b.priority(b.selected(), 3 * M) == Priority::High);
   CHECK(strcmp(action_text(b, b.selected(), 3 * M), "TAKE ORDER") == 0);
-  b.step(3 * M);  // ORD: no threshold
-  CHECK(b.priority(b.selected(), 60 * M) == Priority::None);
-  CHECK(action_text(b, b.selected(), 60 * M) == nullptr);
+  b.step(3 * M);  // ORD: low after 10 min (desk test D20)
+  CHECK(b.priority(b.selected(), 10 * M) == Priority::None);
+  CHECK(action_text(b, b.selected(), 10 * M) == nullptr);
   b.step(10 * M);  // MAIN: low after 15 min
   CHECK(b.priority(b.selected(), 25 * M - 1) == Priority::None);
   CHECK(b.priority(b.selected(), 25 * M) == Priority::Low);
@@ -216,6 +216,27 @@ static void test_wraparound_millis() {
   CHECK(b.poll_alert(start + 6 * M));
 }
 
+// Desk test D20: a forgotten SERVED leaves a table in ORD. After 15 min a
+// low hint shows it; it never raises an alert.
+static void test_long_order_gives_a_low_hint() {
+  Board b(kTables, 4);
+  CHECK(select_table(b, 7));
+  b.step(0);  // seated
+  b.step(0);  // order taken at 0
+  CHECK(b.selected().stage == Stage::Ord);
+  CHECK(b.priority(b.selected(), 10 * M - 1) == Priority::None);
+  CHECK(b.priority(b.selected(), 10 * M) == Priority::Low);
+  CHECK(strcmp(action_text(b, b.selected(), 10 * M), "CHECK MAINS") == 0);
+  CHECK(!b.any_high(60 * M));
+  CHECK(!b.poll_alert(60 * M));  // only a mark on the strip
+  b.ack(20 * M);                 // checked: the kitchen is slow
+  CHECK(b.priority(b.selected(), 60 * M) == Priority::None);
+  b.step(61 * M);  // mains served: the next stage has its own hint again
+  CHECK(b.selected().stage == Stage::Main);
+  CHECK(b.priority(b.selected(), 61 * M + 15 * M) == Priority::Low);
+  CHECK(strcmp(action_text(b, b.selected(), 76 * M), "OFFER DESSERT") == 0);
+}
+
 static void test_no_dessert_stage() {
   Board b(kTables, 4);
   CHECK(select_table(b, 3));
@@ -283,6 +304,7 @@ int main() {
   test_scroll_wraps();
   test_numbers_sorted();
   test_no_dessert_stage();
+  test_long_order_gives_a_low_hint();
   test_step_keeps_request_snooze();
   test_labels();
   test_wraparound_millis();

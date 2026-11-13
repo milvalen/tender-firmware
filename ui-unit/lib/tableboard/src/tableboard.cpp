@@ -46,6 +46,7 @@ const char* action_text(const Board& b, const Table& t, uint32_t now) {
     case Need::Stage:
       switch (t.stage) {
         case Stage::Seat: return "TAKE ORDER";
+        case Stage::Ord: return "CHECK MAINS";
         case Stage::Main: return "OFFER DESSERT";
         case Stage::Bill: return "BRING CHECK";
         default: return "CHECK TABLE";
@@ -58,6 +59,8 @@ const char* action_text(const Board& b, const Table& t, uint32_t now) {
 void table_label(uint8_t number, char* buf, size_t len) {
   snprintf(buf, len, "TBL-%02u", static_cast<unsigned>(number));
 }
+
+bool low_hint_stage(Stage s) { return s == Stage::Ord || s == Stage::Main; }
 
 Stage next_stage(Stage s) {
   switch (s) {
@@ -146,7 +149,7 @@ void Board::ack(uint32_t now) {
 Need Board::need(const Table& t, uint32_t now) const {
   if (t.request_open && now - t.request_since >= cfg_.request_ms) return Need::Request;
   uint32_t th = cfg_.threshold(t.stage);
-  if (t.stage == Stage::Main && t.hint_done) return Need::None;  // dessert offered
+  if (low_hint_stage(t.stage) && t.hint_done) return Need::None;  // hint answered with ACK
   if (th != kNoThreshold && now - t.stage_since >= th) return Need::Stage;
   return Need::None;
 }
@@ -155,7 +158,7 @@ Priority Board::priority(const Table& t, uint32_t now) const {
   switch (need(t, now)) {
     case Need::Request: return Priority::High;
     case Need::Stage:
-      if (t.stage != Stage::Main) return Priority::High;
+      if (!low_hint_stage(t.stage)) return Priority::High;
       return t.hint_done ? Priority::None : Priority::Low;
     case Need::None: break;
   }
@@ -215,7 +218,7 @@ int64_t Board::urgency(const Table& t, uint32_t now) const {
   if (th != kNoThreshold) {
     int64_t left = static_cast<int64_t>(th) - static_cast<int64_t>(now - t.stage_since);
     if (left > 0) best = 2 * kBand + left;
-    else best = (t.stage == Stage::Main ? kBand : 0) + left;
+    else best = (low_hint_stage(t.stage) ? kBand : 0) + left;
   }
   if (t.request_open) {
     int64_t left = static_cast<int64_t>(cfg_.request_ms) - static_cast<int64_t>(now - t.request_since);

@@ -32,7 +32,7 @@ bool App::blink_on(uint32_t now) const {
 bool App::screen_off(uint32_t now) const { return board_.muted() && idle(now); }
 
 Action App::map(Key key, Press kind, uint32_t now) const {
-  // Any hint on the selected table (a waiting guest or the dessert hint) can be acknowledged.
+  // Any hint on the selected table (a waiting guest or a low hint) can be acknowledged.
   const bool alert_here = board_.priority(board_.selected(), now) != Priority::None;
   const bool open = board_.selected().request_open;
   switch (key) {
@@ -85,10 +85,12 @@ void App::run(Action a, uint32_t now) {
     case Action::Next: board_.scroll(1); break;
     case Action::Prev: board_.scroll(-1); break;
     case Action::Ack: {
-      const bool dessert = board_.priority(board_.selected(), now) == Priority::Low;
+      const bool low = board_.priority(board_.selected(), now) == Priority::Low;
+      const bool dessert = low && board_.selected().stage == Stage::Main;
       board_.ack(now);
       alert_until_ = now;
       if (dessert) toast_table("DESSERT OFFERED", now);
+      else if (low) toast_table("MAINS CHECKED", now);
       else toast("OK, AGAIN IN 3 MIN", now);
       break;
     }
@@ -227,7 +229,7 @@ void App::screen(uint32_t now, Screen& s) const {
   }
   const char* step = sel.request_open ? "DONE" : step_label(sel.stage);
   // The label of the key that ends the alert is orange (desk test D9):
-  // STEP for a guest request or a stage alert, ACK for the dessert hint.
+  // STEP for a guest request or a stage alert, ACK for a low hint.
   const Need need = board_.need(sel, now);
   const bool req_due = need == Need::Request;
   const bool step_due = need == Need::Stage && prio == Priority::High;
