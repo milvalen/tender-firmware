@@ -78,6 +78,14 @@ Record battery(uint32_t ms, int level) {
   return r;
 }
 
+Record firmware(uint32_t commit, bool dirty) {
+  Record r{};
+  r.ms = commit;
+  r.kind = static_cast<uint8_t>(Kind::Firmware);
+  r.code = dirty ? 1 : 0;
+  return r;
+}
+
 bool Writer::line(const Record& r, char* out, size_t len) {
   const uint8_t stage_code = r.flags & kStageMask;
   const Stage stage = static_cast<Stage>(stage_code);
@@ -87,6 +95,7 @@ bool Writer::line(const Record& r, char* out, size_t len) {
     case Kind::Boot:
       if (r.code > kMaxReset) return false;
       ++boot_;
+      boot_ms_ = r.ms;
       snprintf(out, len, "%d,%lu,BOOT,,,reset=%s\n", boot_, static_cast<unsigned long>(r.ms),
                reset_name(static_cast<Reset>(r.code)));
       return true;
@@ -100,6 +109,14 @@ bool Writer::line(const Record& r, char* out, size_t len) {
       if (r.code == 0 || r.code > kMaxNeed || stage_code > kMaxStage) return false;
       snprintf(out, len, "%d,%lu,ALERT,%u,%s,%s\n", boot_, static_cast<unsigned long>(r.ms), r.table,
                stage_name(stage), alert_text(stage, static_cast<Need>(r.code)));
+      return true;
+    case Kind::Firmware:
+      if (r.code > 1 || boot_ == 0) return false;
+      if (r.ms == 0)
+        snprintf(out, len, "%d,%lu,FIRMWARE,,,commit=unknown\n", boot_, static_cast<unsigned long>(boot_ms_));
+      else
+        snprintf(out, len, "%d,%lu,FIRMWARE,,,commit=%08lx%s\n", boot_, static_cast<unsigned long>(boot_ms_),
+                 static_cast<unsigned long>(r.ms), r.code ? "+dirty" : "");
       return true;
     case Kind::Battery:
       if (r.code == 255) snprintf(out, len, "%d,%lu,BATTERY,,,?\n", boot_, static_cast<unsigned long>(r.ms));

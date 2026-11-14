@@ -8,10 +8,13 @@
 // CSV columns: boot,ms,event,table,stage,detail
 //   boot    boot number since the log was cleared (1, 2, ...)
 //   ms      milliseconds since that boot
-//   event   BOOT, STEP, UNDO, NEXT, PREV, ACK, MUTE, REQUEST, ALERT, BATTERY
+//   event   BOOT, FIRMWARE, STEP, UNDO, NEXT, PREV, ACK, MUTE, REQUEST,
+//           ALERT, BATTERY
 //   table   the selected table after the event (empty for BOOT, BATTERY)
 //   stage   its stage after the event: FREE SEAT ORD MAIN BILL PAY
-//   detail  BOOT: reset=<reason>; key actions: request=0|1 muted=0|1;
+//   detail  BOOT: reset=<reason>; FIRMWARE: commit=<8 hex digits>[+dirty]
+//           (right after BOOT, with the time of the BOOT);
+//           key actions: request=0|1 muted=0|1;
 //           ALERT: the alert text (TAKE ORDER, BRING CHECK, ...);
 //           BATTERY: the level in %
 #pragma once
@@ -27,7 +30,7 @@ namespace shiftlog {
 
 constexpr int kVersion = 1;
 
-enum class Kind : uint8_t { Boot = 1, Action = 2, Alert = 3, Battery = 4 };
+enum class Kind : uint8_t { Boot = 1, Action = 2, Alert = 3, Battery = 4, Firmware = 5 };
 
 // Reset reasons, as the glue reports them.
 enum class Reset : uint8_t { Other, PowerOn, Software, Panic, Watchdog, Brownout, DeepSleep, External };
@@ -46,6 +49,8 @@ static_assert(sizeof(Record) == 8, "a record is 8 bytes in flash");
 Record from_event(const Event& e);
 Record boot(uint32_t ms, Reset reason);
 Record battery(uint32_t ms, int level);
+// The firmware commit: the 32 bits of the record time hold the 8 hex digits.
+Record firmware(uint32_t commit, bool dirty);
 
 // Formats records as CSV lines. Boot numbers count BOOT records, so give it
 // the records in file order, oldest first.
@@ -59,6 +64,7 @@ class Writer {
 
  private:
   int boot_ = 0;
+  uint32_t boot_ms_ = 0;
 };
 
 // The text of an alert, from the stage and the need (no board needed).

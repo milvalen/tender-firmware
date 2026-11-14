@@ -1,7 +1,7 @@
 // Board self-test for TENDER TND-01, for the day the stage 0 boards arrive.
 //
 // Hardware-independent core, like tableboard.h: the StickS3 glue in
-// src/main.cpp feeds key states, pin levels and power readings, runs serial
+// src/self_test_mode.cpp feeds key states, pin levels and power readings, runs serial
 // command lines and applies the outputs (vibration motor PWM, input pulls,
 // display rotation). The checks follow part E of the measurement sheet and
 // the vibrator desk test in tender-vault/40-hardware/.

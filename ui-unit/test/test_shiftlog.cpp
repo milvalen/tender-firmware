@@ -76,6 +76,12 @@ static void test_csv_lines() {
   CHECK(strcmp(sl::Writer::header(), "boot,ms,event,table,stage,detail") == 0);
   CHECK(w.line(sl::boot(120, sl::Reset::PowerOn), line, sizeof line));
   CHECK(strcmp(line, "1,120,BOOT,,,reset=POWERON\n") == 0);
+  CHECK(w.line(sl::firmware(0x0a2b3c4dUL, false), line, sizeof line));
+  CHECK(strcmp(line, "1,120,FIRMWARE,,,commit=0a2b3c4d\n") == 0);  // the time of the BOOT
+  CHECK(w.line(sl::firmware(0, true), line, sizeof line));
+  CHECK(strcmp(line, "1,120,FIRMWARE,,,commit=unknown\n") == 0);
+  CHECK(w.line(sl::firmware(0xec29f0baUL, true), line, sizeof line));
+  CHECK(strcmp(line, "1,120,FIRMWARE,,,commit=ec29f0ba+dirty\n") == 0);
   CHECK(w.line(sl::battery(500, 87), line, sizeof line));
   CHECK(strcmp(line, "1,500,BATTERY,,,87\n") == 0);
 
@@ -127,6 +133,8 @@ static void test_broken_records_are_skipped() {
   CHECK(!w.line(bad_action, line, sizeof line));
   sl::Record bad_stage{1000, static_cast<uint8_t>(sl::Kind::Action), 3, 1, 0x0f};
   CHECK(!w.line(bad_stage, line, sizeof line));
+  sl::Record fw_before_boot = sl::firmware(0x12345678UL, false);
+  CHECK(!w.line(fw_before_boot, line, sizeof line));  // no BOOT yet
   CHECK(w.boots() == 0);
 }
 
